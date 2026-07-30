@@ -1,0 +1,59 @@
+[project]
+name = "fault-injection-harness"
+version = "0.1.0"
+description = "Functional-safety fault injection harness: hazard-derived fault catalog, seedable injection engine, requirement-to-test traceability and a fault coverage report for an embedded motor controller"
+requires-python = ">=3.10"
+
+# The device under test is IMPORTED, not copied, and pinned to a tag rather
+# than tracking main. Both halves matter. Copying would fork the thing being
+# verified, so the original would no longer be what the evidence refers to.
+# Tracking main would let the DUT's thresholds move underneath a published
+# coverage report: v1.2 of that package already changed the overheat trip from
+# 90 to 140 C. A safety artifact whose thresholds shift is worse than none.
+dependencies = [
+    "embedded-test-automation @ git+https://github.com/MKamel7/embedded-test-automation@v1.3",
+    "PyYAML>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# The DUT dependency above is a direct git reference to a pinned tag, which
+# hatchling requires opting into. That is the intent: the version under test
+# must be exact and reproducible, not "whatever main resolves to today".
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fih"]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "pytest-html>=4.0", "pytest-cov>=5.0", "hypothesis>=6.100",
+       "matplotlib>=3.8", "ruff>=0.6", "mypy>=1.11", "types-PyYAML>=6.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+addopts = "-ra --cov=src --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = ["pragma: no cover", "if __name__ == .__main__.:"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests", "scripts"]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RET"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src"]
+strict = true
+warn_unreachable = true
