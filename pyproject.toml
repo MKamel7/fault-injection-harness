@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 # coverage report: v1.2 of that package already changed the overheat trip from
 # 90 to 140 C. A safety artifact whose thresholds shift is worse than none.
 dependencies = [
-    "embedded-test-automation @ git+https://github.com/MKamel7/embedded-test-automation@v1.3",
+    "embedded-test-automation @ git+https://github.com/MKamel7/embedded-test-automation@v1.4",
     "PyYAML>=6.0",
 ]
 
@@ -42,7 +42,16 @@ branch = true
 
 [tool.coverage.report]
 show_missing = true
-exclude_lines = ["pragma: no cover", "if __name__ == .__main__.:"]
+# 100 percent, gated, same as P1. Anything genuinely unreachable is excluded
+# explicitly and carries a comment saying why, so the exclusions are reviewable
+# rather than a number quietly tuned down until the build passed.
+fail_under = 100
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "class .*\\(Protocol\\):",   # structural typing only, no body to execute
+    "if TYPE_CHECKING:",
+]
 
 [tool.ruff]
 line-length = 100
@@ -54,6 +63,6 @@ select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RET"]
 
 [tool.mypy]
 python_version = "3.10"
-files = ["src"]
+files = ["src", "scripts"]
 strict = true
 warn_unreachable = true

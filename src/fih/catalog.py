@@ -1,0 +1,140 @@
+"""Load and validate the fault catalog.
+
+The catalog is data, not code, so that adding a fault is a YAML entry and never
+a new test. That only works if the loader is strict: a typo in a requirement id
+or a missing FTTI has to fail loudly at load time, because the alternative is a
+fault that silently never runs and a coverage report that quietly overstates
+itself.
+
+Validation is deliberately paranoid about the things that would corrupt the
+evidence rather than merely crash:
+
+  - unknown keys are rejected, so a misspelled field is not silently ignored
+  - a detected fault must carry an FTTI, or its result cannot be judged
+  - a residual fault must NOT carry one, and must explain itself
+  - ids must be unique, or traceability silently loses an entry
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+FAULT_CLASSES = {"sensor", "actuator", "communication", "timing"}
+EXPECTATIONS = {"detected", "residual"}
+SAFE_STATES = {"STO", "SS1", "none"}
+
+_REQUIRED = {"id", "title", "fault_class", "description", "injection",
+             "challenges", "safe_state", "ftti_steps", "expectation"}
+_OPTIONAL = {"residual_rationale"}
+
+DEFAULT_CATALOG = Path(__file__).resolve().parents[2] / "catalog" / "faults.yaml"
+
+
+class CatalogError(ValueError):
+    """Raised when the catalog is malformed. Never recovered from."""
+
+
+@dataclass(frozen=True)
+class Fault:
+    """One catalogued fault."""
+
+    id: str
+    title: str
+    fault_class: str
+    description: str
+    hook: str
+    params: dict[str, Any]
+    challenges: tuple[str, ...]
+    safe_state: str
+    ftti_steps: int | None
+    expectation: str
+    residual_rationale: str | None = None
+
+    @property
+    def is_residual(self) -> bool:
+        return self.expectation == "residual"
+
+
+def _fail(fault_id: str, message: str) -> None:
+    raise CatalogError(f"{fault_id}: {message}")
+
+
+def _parse_fault(raw: dict[str, Any], seen: set[str]) -> Fault:
+    fault_id = str(raw.get("id", "<no id>"))
+
+    unknown = set(raw) - _REQUIRED - _OPTIONAL
+    if unknown:
+        _fail(fault_id, f"unknown field(s) {sorted(unknown)}. A misspelled key "
+                        f"would otherwise be silently ignored")
+    missing = _REQUIRED - set(raw)
+    if missing:
+        _fail(fault_id, f"missing required field(s) {sorted(missing)}")
+    if fault_id in seen:
+        _fail(fault_id, "duplicate id; traceability would lose one of them")
+
+    if raw["fault_class"] not in FAULT_CLASSES:
+        _fail(fault_id, f"fault_class {raw['fault_class']!r} not in {sorted(FAULT_CLASSES)}")
+    if raw["expectation"] not in EXPECTATIONS:
+        _fail(fault_id, f"expectation {raw['expectation']!r} not in {sorted(EXPECTATIONS)}")
+    if raw["safe_state"] not in SAFE_STATES:
+        _fail(fault_id, f"safe_state {raw['safe_state']!r} not in {sorted(SAFE_STATES)}")
+
+    injection = raw["injection"]
+    if not isinstance(injection, dict) or "hook" not in injection:
+        _fail(fault_id, "injection must be a mapping with a 'hook'")
+    challenges = raw["challenges"]
+    if not isinstance(challenges, list) or not challenges:
+        _fail(fault_id, "challenges must be a non-empty list of requirement ids")
+
+    ftti = raw["ftti_steps"]
+    residual = raw["expectation"] == "residual"
+    if residual:
+        if ftti is not None:
+            _fail(fault_id, "residual faults must not carry an FTTI: nothing "
+                            "detects them, so there is no budget to meet")
+        if not raw.get("residual_rationale"):
+            _fail(fault_id, "residual faults must state what design change "
+                            "would close the gap")
+    else:
+        if not isinstance(ftti, int) or ftti < 1:
+            _fail(fault_id, "a detected fault needs a positive integer FTTI in "
+                            "steps, or its result cannot be judged")
+        if raw.get("residual_rationale"):
+            _fail(fault_id, "residual_rationale is meaningless on a detected fault")
+
+    return Fault(
+        id=fault_id,
+        title=str(raw["title"]),
+        fault_class=str(raw["fault_class"]),
+        description=" ".join(str(raw["description"]).split()),
+        hook=str(injection["hook"]),
+        params=dict(injection.get("params") or {}),
+        challenges=tuple(str(c) for c in challenges),
+        safe_state=str(raw["safe_state"]),
+        ftti_steps=ftti,
+        expectation=str(raw["expectation"]),
+        residual_rationale=(" ".join(str(raw["residual_rationale"]).split())
+                            if raw.get("residual_rationale") else None),
+    )
+
+
+def load_catalog(path: Path | str = DEFAULT_CATALOG) -> tuple[Fault, ...]:
+    """Parse and validate the catalog, or raise CatalogError."""
+    text = Path(path).read_text()
+    doc = yaml.safe_load(text)
+    if not isinstance(doc, dict) or "faults" not in doc:
+        raise CatalogError(f"{path}: expected a mapping with a 'faults' list")
+
+    faults: list[Fault] = []
+    seen: set[str] = set()
+    for raw in doc["faults"]:
+        fault = _parse_fault(raw, seen)
+        seen.add(fault.id)
+        faults.append(fault)
+    if not faults:
+        raise CatalogError(f"{path}: catalog is empty")
+    return tuple(faults)

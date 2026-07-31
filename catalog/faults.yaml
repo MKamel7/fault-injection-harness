@@ -1,0 +1,295 @@
+# Fault catalog.
+#
+# Every entry traces to a safety requirement in docs/HAZARD_ANALYSIS.md. Nothing
+# here is injected because it seemed interesting: a fault exists to challenge a
+# requirement, and a requirement with no fault challenging it fails the build.
+#
+# Adding a fault is a change to THIS FILE ONLY. The tests are catalog driven, so
+# fault 19 needs no new test code, which is the property a safety review looks
+# for and the reason the catalog is data rather than Python.
+#
+# expectation:
+#   detected  the protection must catch it inside ftti_steps
+#   residual  the current design CANNOT catch it. Catalogued deliberately and
+#             reported as an open gap with the design change that would close
+#             it. A campaign reporting 100% detection would not be credible.
+
+version: 1
+
+faults:
+
+  # --- communication --------------------------------------------------------
+  - id: FLT-C01
+    title: Speed command corrupted to an out of range value
+    fault_class: communication
+    description: >
+      A bit error in transit turns a valid speed into one above the rated
+      maximum. The controller must reject it rather than clamp it, because
+      clamping silently substitutes a value nobody commanded.
+    injection: {hook: corrupt_speed_argument, params: {to_rpm: 9999}}
+    challenges: [SR-01]
+    safe_state: none
+    ftti_steps: 1
+    expectation: detected
+
+  - id: FLT-C02
+    title: Malformed command frame
+    fault_class: communication
+    description: >
+      The frame arrives with a non numeric argument. Must be rejected, and must
+      not disturb the current setpoint.
+    injection: {hook: corrupt_speed_argument, params: {to_literal: "NaN%%"}}
+    challenges: [SR-02]
+    safe_state: none
+    ftti_steps: 1
+    expectation: detected
+
+  - id: FLT-C03
+    title: Command channel falls silent
+    fault_class: communication
+    description: >
+      The supervisory controller stops sending. Nothing is corrupted, nothing is
+      rejected, and the drive would happily keep turning forever. Only the
+      watchdog closes this.
+    injection: {hook: silence_channel, params: {}}
+    challenges: [SR-05]
+    safe_state: STO
+    ftti_steps: 11
+    expectation: detected
+
+  - id: FLT-C04
+    title: Channel echoes stale OK responses
+    fault_class: communication
+    description: >
+      The link answers OK to everything without the controller ever seeing the
+      command. Every protocol level check passes, because the replies are
+      well formed and successful. This is the fault that proves a protocol
+      check is not a liveness check.
+    injection: {hook: stale_ok_echo, params: {}}
+    challenges: [SR-06]
+    safe_state: STO
+    ftti_steps: 11
+    expectation: detected
+
+  - id: FLT-C05
+    title: Response truncated, terminator lost
+    fault_class: communication
+    description: >
+      The reply arrives without its line terminator, so the driver cannot frame
+      it. Must surface as a transport error rather than a silently wrong value.
+    injection: {hook: truncate_response, params: {}}
+    challenges: [SR-02]
+    safe_state: none
+    ftti_steps: 1
+    expectation: detected
+
+  - id: FLT-C06
+    title: Command dropped, success fabricated
+    fault_class: communication
+    description: >
+      The request never reaches the controller and the transport fabricates an
+      OK. Indistinguishable from success at the protocol layer, so again only
+      the watchdog catches it.
+    injection: {hook: drop_command, params: {}}
+    challenges: [SR-06]
+    safe_state: STO
+    ftti_steps: 11
+    expectation: detected
+
+  - id: FLT-C07
+    title: Responses delayed beyond the supervisor's patience
+    fault_class: communication
+    description: >
+      Replies are correct but late. MEASURED FINDING, and it moved this entry:
+      the commands themselves still reach the controller, so the watchdog stays
+      fed and the drive is genuinely healthy. Nothing enters STO, and nothing
+      should. What breaks is the SUPERVISOR'S VIEW, and the driver detects it by
+      failing to frame a reply in time. The lesson is about the item boundary: a
+      fault on the return path is not a fault in the drive, and a catalog that
+      demanded STO here would be asserting a hazard that does not exist.
+    injection: {hook: delay_response, params: {steps: 15}}
+    challenges: [SR-02]
+    safe_state: none
+    ftti_steps: 1
+    expectation: detected
+
+  - id: FLT-C08
+    title: Response for a different command (masquerade)
+    fault_class: communication
+    description: >
+      A reply intended for GET_TEMP is delivered in answer to GET_SPEED. Both
+      are well formed OK responses, both are fresh, and nothing in the protocol
+      binds a reply to its request.
+    injection: {hook: masquerade_response, params: {}}
+    challenges: [SR-06]
+    safe_state: none
+    ftti_steps: null
+    expectation: residual
+    residual_rationale: >
+      The protocol carries no request identifier, so a well formed reply cannot
+      be bound to the command that caused it. Closing this needs a data
+      identifier in the protected frame, which is exactly what AUTOSAR E2E's
+      Data ID and PROFIsafe's F_Destination_Address provide. Addressed in the
+      protection layer, not by the bare protocol.
+
+  # --- sensor ---------------------------------------------------------------
+  - id: FLT-S01
+    title: Temperature sensor stuck at a safe value
+    fault_class: sensor
+    description: >
+      The reported winding temperature never leaves ambient while the winding
+      actually heats. Any protection reading only the reported value is blind.
+    injection: {hook: temperature_stuck, params: {at_c: 40.0}}
+    challenges: [SR-10]
+    safe_state: none
+    ftti_steps: null
+    expectation: residual
+    residual_rationale: >
+      MEASURED, not assumed: the winding reached 422 C, far past the 140 C
+      insulation limit, while the sensor reported 40 C and the drive kept
+      running. The item has a single temperature source and the protection trips
+      on the reported value, so a sensor that lies defeats it completely. SR-10
+      is NOT satisfied by this design. Closing it needs a second independent
+      measurement, or a plausibility check of temperature rise against commanded
+      torque and elapsed time.
+
+  - id: FLT-S02
+    title: Temperature sensor stuck at an alarming value
+    fault_class: sensor
+    description: >
+      The inverse of FLT-S01. The trip fires when nothing is wrong. Unwanted,
+      but it fails towards the safe state, and the campaign records that
+      direction rather than treating every trip as success.
+    injection: {hook: temperature_stuck, params: {at_c: 200.0}}
+    challenges: [SR-03]
+    safe_state: STO
+    ftti_steps: 20
+    expectation: detected
+
+  - id: FLT-S03
+    title: Temperature sensor drifts low
+    fault_class: sensor
+    description: >
+      A slow negative bias, the hardest sensor fault to notice, because every
+      individual reading is plausible.
+    injection: {hook: temperature_bias, params: {offset_c: -60.0}}
+    challenges: [SR-10]
+    safe_state: none
+    ftti_steps: null
+    expectation: residual
+    residual_rationale: >
+      Same root cause as FLT-S01 and harder to notice, because every individual
+      reading is plausible. Measured: the winding reached 120 C while the sensor
+      reported 60 C. A bias large enough to matter is indistinguishable from a
+      cooler motor without a second source.
+
+  - id: FLT-S04
+    title: Speed feedback stuck at zero
+    fault_class: sensor
+    description: >
+      The controller reports no motion while the rotor turns. Nothing in the
+      item cross checks commanded speed against measured speed.
+    injection: {hook: speed_feedback_stuck, params: {at_rpm: 0.0}}
+    challenges: [SR-09]
+    safe_state: none
+    ftti_steps: null
+    expectation: residual
+    residual_rationale: >
+      There is a single speed source, so there is nothing to disagree with it.
+      Closing this needs a second independent measurement, or a plausibility
+      check of speed against commanded torque and elapsed time. Out of scope for
+      a single channel item, and named rather than hidden.
+
+  # --- actuator -------------------------------------------------------------
+  - id: FLT-A01
+    title: Rotor stalled while torque is commanded
+    fault_class: actuator
+    description: >
+      Mechanically blocked shaft. No motion, full current, so the winding heats
+      far faster than in normal running. The thermal path must reach the safe
+      state before the insulation limit.
+    injection: {hook: stall_rotor, params: {}}
+    challenges: [SR-04]
+    safe_state: STO
+    ftti_steps: 20
+    expectation: detected
+
+  - id: FLT-A02
+    title: Torque lost, motor free spinning
+    fault_class: actuator
+    description: >
+      The command is accepted and the controller believes it is driving, but no
+      torque reaches the shaft, for example a severed phase.
+    injection: {hook: torque_loss, params: {}}
+    challenges: [SR-09]
+    safe_state: none
+    ftti_steps: null
+    expectation: residual
+    residual_rationale: >
+      Loss of torque is silent without current sensing or a load side
+      measurement, neither of which this item has. Closing it needs current
+      feedback compared against the commanded operating point.
+
+  # --- timing ---------------------------------------------------------------
+  - id: FLT-T01
+    title: Watchdog starved
+    fault_class: timing
+    description: >
+      The supervisor stops kicking while the drive continues to run. The base
+      case for the watchdog, and the reference against which the subtler
+      liveness faults are judged.
+    injection: {hook: starve_watchdog, params: {}}
+    challenges: [SR-05]
+    safe_state: STO
+    ftti_steps: 11
+    expectation: detected
+
+  - id: FLT-T02
+    title: Watchdog kick arrives one step late
+    fault_class: timing
+    description: >
+      The boundary case. A kick exactly one step after the budget expires must
+      not rescue the drive, because by then the fault has already latched.
+    injection: {hook: late_watchdog_kick, params: {late_by: 1}}
+    challenges: [SR-05, SR-08]
+    safe_state: STO
+    ftti_steps: 11
+    expectation: detected
+
+  - id: FLT-T03
+    title: Reset attempted while the fault condition persists
+    fault_class: timing
+    description: >
+      An operator resets without clearing the cause. The drive may return to
+      service, but must trip again rather than run on with the condition still
+      present.
+    injection: {hook: reset_without_clearing, params: {}}
+    challenges: [SR-08]
+    safe_state: STO
+    ftti_steps: 20
+    expectation: detected
+
+  - id: FLT-T04
+    title: Commands issued continuously while in the safe state
+    fault_class: timing
+    description: >
+      A supervisor that has not noticed the fault keeps commanding speed. The
+      safe state must hold under sustained pressure, not merely once.
+    injection: {hook: hammer_commands_in_fault, params: {count: 50}}
+    challenges: [SR-07, SR-08]
+    safe_state: STO
+    ftti_steps: 20
+    expectation: detected
+
+  - id: FLT-T05
+    title: Telemetry read while in the safe state
+    fault_class: timing
+    description: >
+      Not a hazard, a diagnosability requirement. A drive that goes silent when
+      it trips cannot be investigated, and an operator cannot tell an
+      overtemperature trip from a lost link.
+    injection: {hook: read_telemetry_in_fault, params: {}}
+    challenges: [SR-09]
+    safe_state: STO
+    ftti_steps: 1
+    expectation: detected
