@@ -211,6 +211,36 @@ faults:
       adding a second trip point, and it is why the second source is worth more
       than a redundant threshold.
 
+  - id: FLT-S08
+    title: Winding sensor stuck while the motor is overloaded but still turning
+    fault_class: sensor
+    description: >
+      The same lie as FLT-S01 under a condition far more likely than a locked
+      rotor: twice rated torque, still turning, heating at four times rated
+      because loss goes as current squared. Slower, so the detection margins
+      that the whole SR-10 argument turns on are different here.
+    injection: {hook: temperature_stuck, params: {at_c: 40.0}}
+    precondition: overloaded_rotor
+    challenges: [SR-10]
+    safe_state: STO
+    ftti_steps: 36
+    expectation: detected
+    history: >
+      Added after a review pointed out that every thermal sensor fault carried
+      the stalled rotor precondition, so the only thermal hazard exercised was
+      the fastest and most obvious one. The budget is derived the same way as
+      the others, by measuring how long the winding takes to cover its permitted
+      rise at this load: 36 steps here against 7 under locked rotor current.
+      THE RESULT IS THE INTERESTING PART. The cross check fires at step 27,
+      inside the budget, with the winding at 117 C and still under its limit. So
+      the second temperature source DOES protect against a lying sensor under a
+      sustained overload, and fails only under the locked rotor case where the
+      winding covers its entire rise faster than the frame can follow. The
+      earlier catalog, testing only the stall, made the redundancy look simply
+      inadequate. It is adequate for the likelier hazard and inadequate for the
+      fastest one, which is a much more useful thing to know and was invisible
+      until the overload condition existed.
+
   - id: FLT-S05
     title: Both temperature sensors stuck at a safe value (common cause)
     fault_class: sensor
@@ -238,6 +268,60 @@ faults:
       model does not represent: different sensing principle, different supply,
       different conversion path, and an FMEDA to show the common cause fraction
       is acceptable.
+
+  - id: FLT-S06
+    title: Frame sensor reads high while the motor is healthy
+    fault_class: sensor
+    description: >
+      The failure mode that adding a second channel introduced. 120 C is below
+      the winding limit and looks entirely plausible, so nothing about the value
+      announces a fault, and the motor it is describing is at 40 C.
+    injection: {hook: housing_stuck, params: {at_c: 120.0}}
+    challenges: [SR-11]
+    safe_state: STO
+    ftti_steps: 7
+    expectation: detected
+    history: >
+      Uncatalogued until a review in July 2026. Redundancy is a second thing
+      that can fail, and the only entry touching this sensor failed BOTH
+      channels at once, so the whole failure space of the newly added component
+      was untested. Against DUT v2.0 this tripped OVERTEMP_HOUSING at step 1: an
+      overtemperature the motor was not having. v2.1 reports SENSOR_DISAGREEMENT
+      instead, because two channels can detect a contradiction and cannot
+      attribute it, and naming the wrong condition sends maintenance to the
+      wrong part.
+
+  - id: FLT-S07
+    title: Frame sensor reads low, removing the backstop silently
+    fault_class: sensor
+    description: >
+      The mirror of FLT-S06 and undetectable by construction. The frame is
+      supposed to be the cooler node, so a low reading contradicts nothing.
+    injection: {hook: housing_stuck, params: {at_c: 40.0}}
+    challenges: [SR-11]
+    safe_state: none
+    ftti_steps: null
+    expectation: residual
+    residual_rationale: >
+      A two channel design detects DISAGREEMENT, and a frame sensor reading low
+      never disagrees with anything: it reads cooler than the winding, which is
+      exactly what a healthy frame does. So the second channel goes quietly dead
+      and the backstop it provides disappears with no indication whatever.
+      This entry is deliberately run WITHOUT the stalled rotor precondition its
+      siblings carry, and the reason is the interesting part. With a stall the
+      winding sensor is honest and trips on its own, so the run would report
+      "detected" while measuring nothing about the frame sensor at all. The
+      first version of this entry did exactly that and the campaign caught it.
+      What that exposes is the KIND of fault this is: a LATENT one. It has no
+      effect by itself and removes a backstop that only matters once the primary
+      channel has also failed. Demonstrating the consequence needs a dual point
+      injection, latent plus primary, which this harness does not do and which is
+      named as a scope limit in the safety argument. ISO 26262's latent fault
+      metrics exist precisely for this combination, and this entry is the closest
+      the catalog comes to one.
+      Closing it needs a third channel, or a plausibility check of the frame
+      reading against commanded current and elapsed time, which is the same
+      estimator FLT-S01 needs and would serve both.
 
   - id: FLT-S04
     title: Speed feedback stuck at zero

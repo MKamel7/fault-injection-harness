@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 from dut_sim.motor_controller import MotorControllerSim
-from hypothesis import given
+from hypothesis import assume, given
 from hypothesis import strategies as st
 from testbench.driver import SimTransport
 
@@ -66,6 +66,18 @@ def test_the_counter_wraps_without_a_false_rejection(profile) -> None:  # type: 
     assert tx.rejections == []
 
 
+def test_the_crc_matches_the_published_check_value() -> None:
+    """A known answer test, which the suite did not have.
+
+    Every other test computes the CRC with the same function it is testing, so a
+    wrong but self consistent polynomial would pass all of them, including the
+    searched corruption property. The published check value for
+    CRC-8/SAE-J1850, the algorithm E2E Profile 1 specifies, is 0x4B over the
+    ASCII string "123456789".
+    """
+    assert crc8(b"123456789") == 0x4B
+
+
 # --- corruption --------------------------------------------------------------
 @pytest.mark.parametrize("profile", PROFILE_LIST, ids=PROFILE_IDS)
 @given(position=st.integers(min_value=0, max_value=30),
@@ -80,8 +92,10 @@ def test_any_single_character_change_is_caught(profile, position: int,  # type: 
     """
     body = f"SET_SPEED 3000{SEP}5{SEP}{message_id(profile, 'SET_SPEED')}"
     frame = f"{body}{SEP}{crc8(body.encode()):02X}"
-    if position >= len(frame) or frame[position] == replacement:
-        return
+    # assume(), not return: a rejected example must be RESAMPLED rather than
+    # counted as a passing one, or the effective example count sits well below
+    # the nominal one and the search is weaker than it looks.
+    assume(position < len(frame) and frame[position] != replacement)
     mutated = frame[:position] + replacement + frame[position + 1:]
 
     class _Wire:

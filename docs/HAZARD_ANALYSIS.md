@@ -62,6 +62,8 @@ may fall silent, repeat itself, or send corrupted frames.
 | HAZ-04 | A corrupted, stale or out of sequence command is acted upon | unintended motion in the wrong direction or at the wrong speed |
 | HAZ-05 | A protection fault clears without deliberate intervention | the hazardous condition recurs unnoticed and unlogged |
 | HAZ-06 | Protection depends on a single sensor that misreports | the trip never fires, and nothing indicates why |
+| HAZ-07 | A failed diagnostic channel stops a healthy machine | unnecessary downtime, and protection that nuisance trips is protection that gets bypassed |
+| HAZ-08 | A redundant channel fails silently | the item believes it has two channels and has one, so the argument for SG-06 quietly stops holding |
 
 ## 5. Safety goals
 
@@ -73,6 +75,7 @@ may fall silent, repeat itself, or send corrupted frames.
 | SG-04 | Corrupted, stale, lost or repeated commands shall not be acted upon | HAZ-04 |
 | SG-05 | A safe state, once entered, shall persist until a deliberate reset | HAZ-05 |
 | SG-06 | Overtemperature protection shall not depend solely on a reported sensor value | HAZ-06 |
+| SG-07 | A fault in a diagnostic channel shall not be reported as a fault in the machine, and shall not stop it unnecessarily | HAZ-07, HAZ-08 |
 
 ## 6. Safe states
 
@@ -151,6 +154,7 @@ Each is testable, and each is challenged by at least one fault in the catalog.
 | SR-08 | STO shall persist through cooldown and through every command except an explicit reset | SG-05 | invariant |
 | SR-09 | Telemetry shall remain readable in STO, so the cause is diagnosable | SG-02 | invariant |
 | SR-10 | Overtemperature protection shall not be defeated by a sensor reporting implausible values | SG-06 | 7 steps |
+| SR-11 | A contradiction between temperature channels shall be reported as a sensor fault, not as an overtemperature, and shall stop the drive only while torque is commanded | SG-07 | 7 steps |
 
 ## 9. Notes carried into the catalog
 
@@ -162,3 +166,65 @@ Each is testable, and each is challenged by at least one fault in the catalog.
 - **Some faults are expected to be residual.** They are catalogued deliberately,
   reported as undetected, and answered with what design change would be needed.
   A campaign reporting 100% detection would not be credible.
+
+
+## 9. Change impact analysis
+
+Added after a review found that the item had changed twice while this document
+had not. Both standards require the safety analysis to be revisited when the
+item changes, and skipping it is what allowed HAZ-07 to exist unnoticed: a
+hazard analysis re-run after v1.5 would have asked what happens when the new
+sensor fails, and would have found the answer in minutes.
+
+Recorded per release from here on, however short.
+
+| Release | Change to the item | Impact on this analysis |
+|---|---|---|
+| v1.2 | Overheat trip moved from 90 C to 140 C, derived from thermal class 155 (F) | No new hazard. SR-03 and SR-04 thresholds restated as derived rather than chosen. |
+| v1.4 | Typed package marker only | None. No behavioural change. |
+| v1.5 | **Second temperature channel added**, with a frame node, a frame limit and a cross check | **Not assessed at the time, and it should have been.** Adds a component with its own failure modes, one of which stops a healthy machine. Now covered by HAZ-07, HAZ-08, SG-07 and SR-11, and by faults FLT-S06 and FLT-S07. |
+| v2.0 | Thermal model validated against the data sheet: loss follows current rather than speed, rated duty calibrated to the permitted temperature | No new hazard, but every thermal FTTI changed. SR-03, SR-04 and SR-10 moved from a chosen 20 steps to a **derived 7**, being the time the winding takes to cover its whole permitted rise under locked rotor current. |
+| v2.1 | Contradiction between channels reported as SENSOR_DISAGREEMENT rather than as an overtemperature; no trip without commanded torque; annunciation added | Closes SR-11. Also demotes the frame limit from "independent path" to "slow backstop", since it is suppressed whenever the channels disagree. |
+
+### FTTI budgets, and why they differ by condition
+
+Every thermal budget is now measured rather than chosen: the steps the winding
+takes to cover its whole permitted rise, 40 C to 140 C, under the condition being
+tested.
+
+| Condition | Current | Budget |
+|---|---|---|
+| Locked rotor | 4.29x rated | **7 steps** |
+| Sustained overload, still turning | 2x rated | **36 steps** |
+
+Both are worth carrying, and testing only the first was misleading. Under
+overload the cross check fires at step 27 with the winding at 117 C, inside both
+budget and limit, so the second temperature source **does** protect against a
+lying sensor there. It fails only under locked rotor, where the winding covers
+its entire rise faster than the frame can follow. A catalog that exercised only
+the stall made the redundancy look simply inadequate; it is adequate for the
+likelier hazard and inadequate for the fastest one.
+
+### What the v1.5 omission cost, stated plainly
+
+Adding redundancy halves exposure to a missed detection and **doubles exposure
+to a spurious one**, because a second channel is a second thing that can fail.
+The design was changed to improve SG-06 and nobody asked what it did to
+availability. The answer, measured, was that a frame sensor reading a plausible
+120 C stopped a healthy motor at step 1, and did so at idle as well, on a machine
+that had never moved.
+
+That is the kind of finding a change impact analysis exists to produce, and it
+took an adversarial review to surface instead.
+
+### The trade that was never made explicitly
+
+On a disagreement the item can stop, which is safe and less available, or
+continue on one channel with annunciation, which is available and less safe.
+This analysis now records the decision rather than leaving it implicit in code:
+
+**Stop while torque is commanded, annunciate otherwise.** An item with no
+trustworthy temperature reading should not keep producing torque, and a
+stationary drive producing none is not a thermal hazard. The asymmetry is
+deliberate: it takes the safe option exactly where the hazard exists and refuses
+to take the machine down where it does not.

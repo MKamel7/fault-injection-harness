@@ -330,8 +330,8 @@ wheels = [
 
 [[package]]
 name = "embedded-test-automation"
-version = "2.0.0"
-source = { git = "https://github.com/MKamel7/embedded-test-automation?rev=v2.0#5c016fff75d78e64d042a783c7e69c7d9551098c" }
+version = "2.1.0"
+source = { git = "https://github.com/MKamel7/embedded-test-automation?rev=v2.1#604aec1593943601a83f8055e02145acf19a8a26" }
 
 [[package]]
 name = "exceptiongroup"
@@ -347,7 +347,7 @@ wheels = [
 
 [[package]]
 name = "fault-injection-harness"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "embedded-test-automation" },
@@ -369,7 +369,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "embedded-test-automation", git = "https://github.com/MKamel7/embedded-test-automation?rev=v2.0" },
+    { name = "embedded-test-automation", git = "https://github.com/MKamel7/embedded-test-automation?rev=v2.1" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 

@@ -9,9 +9,9 @@ protection layer configured as **both AUTOSAR E2E and PROFIsafe**, and the two
 are compared on the same fault set.
 
 ```
-20 faults   15 detected in time   1 detected too late   4 residual
-135 tests   100% branch coverage   ruff + mypy strict   all gated in CI
-3 of 10 safety requirements currently NOT met, each named with why
+23 faults   17 detected in time   1 detected too late   5 residual
+144 tests   100% branch coverage   ruff + mypy strict   all gated in CI
+4 of 11 safety requirements currently NOT met, each named with why
 ```
 
 ## What this is for
@@ -63,10 +63,27 @@ faster than its slower channel responds. Closing it needs a different **kind** o
 channel, a model based estimator that integrates commanded current and has no
 thermal mass and therefore no lag, which is exactly why real drives use one.
 
-**Where the second source does work:** a sensor drifting 60 C low is caught at
-step 1, and by only one of the three checks. Neither temperature limit is ever
-reached, so nothing but the disagreement between channels exposes it. That is the
-argument for cross checking rather than for a second trip point.
+**Where the second source does work.** Two cases, and the second only became
+visible once the catalog stopped testing thermal faults exclusively at the
+extreme. A sensor drifting 60 C low is caught at step 1 by the disagreement
+alone, because neither temperature limit is ever reached. And under a **sustained
+overload rather than a locked rotor**, twice rated torque with the shaft still
+turning, the same lie as above is caught at step 27 with the winding at 117 C,
+inside both the 36 step budget and the 140 C limit.
+
+So the redundancy is **adequate for the likelier hazard and inadequate for the
+fastest one**, which is a far more useful statement than the one a stall-only
+catalog produced.
+
+**And the redundancy is itself a new failure source.** A frame sensor reading a
+plausible 120 C used to stop a healthy motor at step 1, reported as an
+overtemperature the motor was not having, and did the same at idle on a machine
+that had never moved. Two channels can detect a contradiction and cannot
+attribute it, so the diagnostic now says `SENSOR_DISAGREEMENT`, and a
+disagreement with no torque commanded annunciates instead of tripping. A frame
+sensor reading *low* remains undetectable and is catalogued as such: it is a
+latent fault, harmless alone, and it removes a backstop that only matters once
+the primary channel has failed too.
 
 **And it is deliberately not oversold.** FLT-S05 injects the same lie into *both*
 channels and is residual: the winding runs past 1500 C undetected, exactly as the

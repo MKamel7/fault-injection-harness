@@ -94,9 +94,21 @@ def check(faults: tuple[Fault, ...],
 
 
 def matrix_markdown(faults: tuple[Fault, ...],
-                    requirements: tuple[Requirement, ...],
-                    results: dict[str, object] | None = None) -> str:
-    """Render the traceability matrix."""
+                    requirements: tuple[Requirement, ...]) -> str:
+    """Render the traceability matrix from the CATALOG, not from a run.
+
+    Stated because it used to be misleading. This function once took a `results`
+    argument and never read it, which implied the matrix reported measured
+    outcomes. It does not: it reports what the catalog DECLARES, so a fault that
+    claims to be detected in time appears here as coverage whether or not the run
+    agreed.
+
+    That is not unsound, because a mis-declared fault fails its verdict in
+    `report.py` and fails the build. But the two documents answer different
+    questions and should be read that way: this one is declared linkage, and
+    `report/coverage.md` is what happened. The dead parameter suggested
+    otherwise and is gone.
+    """
     mapping = check(faults, requirements)
     by_id = {f.id: f for f in faults}
 
@@ -105,6 +117,11 @@ def matrix_markdown(faults: tuple[Fault, ...],
         "",
         "Generated from `catalog/faults.yaml` and `docs/HAZARD_ANALYSIS.md`. Do "
         "not edit by hand.",
+        "",
+        "**This is declared linkage, not measured outcome.** It shows which fault "
+        "challenges which requirement and what the catalog expects. What actually "
+        "happened is in `coverage.md`, and a fault whose declaration does not "
+        "match its run fails the build rather than appearing here as coverage.",
         "",
         "Both directions are enforced and the build fails on a gap in either: a "
         "requirement with no fault is a hole in the argument, and a fault with "

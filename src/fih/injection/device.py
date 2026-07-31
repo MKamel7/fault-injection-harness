@@ -118,6 +118,17 @@ def temperature_bias(dut: SensorFaultedController, offset_c: float) -> None:
     dut.temp_bias_c = float(offset_c)
 
 
+def housing_stuck(dut: SensorFaultedController, at_c: float) -> None:
+    """The FRAME sensor alone misreports.
+
+    The failure mode adding a second channel introduced. It went uncatalogued
+    until a review pointed out that the only entry touching this sensor failed
+    both channels at once, so the entire failure space of the newly added
+    component was untested.
+    """
+    dut.housing_stuck_at = float(at_c)
+
+
 def both_temperatures_stuck(dut: SensorFaultedController, at_c: float) -> None:
     """Both thermal channels report the same safe value.
 
@@ -149,6 +160,7 @@ def torque_loss(dut: ActuatorFaultedController) -> None:
 DEVICE_HOOKS: dict[str, Callable[..., None]] = {
     "temperature_stuck": temperature_stuck,
     "temperature_bias": temperature_bias,
+    "housing_stuck": housing_stuck,
     "both_temperatures_stuck": both_temperatures_stuck,
     "speed_feedback_stuck": speed_feedback_stuck,
     "stall_rotor": stall_rotor,

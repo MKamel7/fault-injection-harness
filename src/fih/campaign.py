@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dut_sim.motor_controller import OVERHEAT_LIMIT_C
+from dut_sim.motor_controller import OVERHEAT_LIMIT_C, RATED_TORQUE_NM, THERMAL_TIME_STEPS
 from testbench.driver import MotorControllerDriver, ProtocolError, SimTransport
 
 from fih.catalog import Fault
@@ -26,10 +26,15 @@ from fih.injection.device import (
 )
 from fih.injection.transport import TRANSPORT_HOOKS, FaultyTransport
 
-#: Steps a campaign runs for. Comfortably beyond the largest FTTI in the
-#: catalog, so "not detected" means the design missed it rather than the run
-#: being cut short.
-RUN_STEPS = 120
+#: Steps a campaign runs for, DERIVED rather than chosen. It was 120 against a
+#: thermal time constant of 125, so no run ever reached thermal equilibrium and
+#: "not detected" quietly meant "not detected within 0.96 time constants". The
+#: constant predated the thermal model it was timing.
+#:
+#: Two full thermal time constants puts the slowest process in the item at 86%
+#: of its final value, so a thermal fault that is going to be missed has visibly
+#: been missed rather than merely being still in progress.
+RUN_STEPS = int(THERMAL_TIME_STEPS * 2)
 
 #: Watchdog budget armed for the liveness faults. Ten steps, so the 11 step FTTI
 #: in the catalog is budget plus one.
@@ -132,6 +137,12 @@ def run(fault: Fault, steps: int = RUN_STEPS) -> RunResult:
     # danger and would overstate nothing but also prove nothing.
     if fault.precondition == "stalled_rotor":
         dut.inject_stall(True)
+    elif fault.precondition == "overloaded_rotor":
+        # Twice rated torque: the machine still turns, so this is not a stall,
+        # and it heats at four times rated because loss goes as current squared.
+        # More likely in service than a locked rotor and much slower, which is
+        # what makes it a different test rather than a weaker one.
+        dut.load_torque_nm = RATED_TORQUE_NM * 2.0
 
     kicking = fault.hook not in {"starve_watchdog", "late_watchdog_kick"}
     # One step past the budget by default: the boundary case, where the kick is

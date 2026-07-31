@@ -34,7 +34,7 @@ SAFE_STATES = {"STO", "SS1", "none"}
 #: the catalog rather than hard coded in the runner, because "this fault was
 #: only injected once the rotor was already jammed" is part of what the evidence
 #: says, and a reviewer must be able to see it without reading Python.
-PRECONDITIONS = {"stalled_rotor"}
+PRECONDITIONS = {"stalled_rotor", "overloaded_rotor"}
 
 _REQUIRED = {"id", "title", "fault_class", "description", "injection",
              "challenges", "safe_state", "ftti_steps", "expectation"}

@@ -31,7 +31,7 @@ Specifically **not** claimed:
 | That the DUT is production code | It is a simulation, deliberately, so that faults can be injected at points a real drive would not expose. |
 
 What the report **does** compute is **detection coverage over the injected fault
-set**: of the 20 faults in this catalog, how many the design detects, how many
+set**: of the 23 faults in this catalog, how many the design detects, how many
 it detects in time, and after how many steps. That is a statement about this catalog and nothing wider. The two
 get conflated constantly and the distinction is the first thing an assessor
 checks.
@@ -53,11 +53,11 @@ falsified by running the campaign would not be worth making.
 | Evidence | Where | What it supports |
 |---|---|---|
 | Hazard analysis: 6 hazards, 6 safety goals, 10 safety requirements, each with an FTTI budget | `docs/HAZARD_ANALYSIS.md` | The faults are derived, not invented |
-| Fault catalog: 20 entries across sensor, actuator, communication and timing, with three outcomes: detected, detected late, residual | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
+| Fault catalog: 23 entries across sensor, actuator, communication and timing, with three outcomes: detected, detected late, residual | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
 | Campaign: one fault per run, fresh device, fixed step budget, no randomness | `src/fih/campaign.py` | Reproducibility. The same fault gives the same result, asserted by test |
 | Bidirectional traceability, build fails on a gap in either direction | `src/fih/traceability.py`, `report/traceability.md` | Every requirement is verified and every fault answers a requirement |
 | Coverage report with latency against each FTTI | `report/coverage.md` | Detection *in time*, not just detection |
-| 135 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
+| 144 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
 
 ### Why the traceability gate runs in both directions
 
@@ -147,13 +147,21 @@ when *every* fault challenging it is detected inside its budget. The weaker rule
 at least one detecting fault, was in place first and scored SR-10 as satisfied
 while a sensor stuck at ambient let the winding reach 207 C.
 
-Three of ten requirements are currently unmet, each for a different reason:
+Four of eleven requirements are currently unmet, each for a different reason:
 
 | | Why |
 |---|---|
 | SR-06 | FLT-C08 undetected: the protocol carries no request identifier |
 | SR-09 | FLT-S04 and FLT-A02 undetected: single source blind spots |
-| SR-10 | FLT-S01 detected too late; FLT-S05 undetected (common cause) |
+| SR-10 | FLT-S01 detected too late under locked rotor; FLT-S05 undetected (common cause) |
+| SR-11 | FLT-S07 undetected: a frame sensor reading low contradicts nothing |
+
+SR-10 deserves a note, because the picture is less bleak than the single row
+suggests. Under a **sustained overload** rather than a locked rotor, FLT-S08,
+the same lying sensor is caught at step 27 with the winding at 117 C, inside both
+budget and limit. The redundancy is adequate for the likelier hazard and
+inadequate for the fastest one. That distinction did not exist while the catalog
+tested thermal faults only at the extreme.
 
 ### What the redundancy still cannot do at all
 
@@ -344,13 +352,28 @@ thing. `docs/HAZARD_ANALYSIS.md` derives the numbers.
 are not in the denominator. The catalog is a considered fault set, not an
 exhaustive one, and no argument here says otherwise.
 
+**Redundancy is itself a hazard, and this was found late.** Adding a second
+temperature channel halved exposure to a missed detection and doubled exposure to
+a spurious shutdown, and nobody assessed that until a review did. The hazard
+analysis now carries HAZ-07 and HAZ-08, SG-07 and SR-11, and a change impact
+table per release. The underlying process failure, changing the item twice
+without revisiting the analysis, is recorded there rather than quietly corrected.
+
 **Single fault at a time.** Each run injects exactly one fault. Multi point
 faults, and in particular a latent fault plus a second fault, are not covered.
 This is a real gap: ISO 26262 latent fault metrics exist precisely because that
 combination is where redundant designs fail.
 
-FLT-S05 is the nearest this campaign comes, and it is worth being precise about
-what it is and is not. It injects a **common cause** failure, one root cause
+FLT-S07 is the closest the catalog comes to a genuine latent fault: a frame
+sensor reading low has no effect by itself and removes a backstop that only
+matters once the primary channel has also failed. Demonstrating the consequence
+needs a dual point injection, which this harness does not do. The first version
+of that entry carried a stalled rotor precondition and reported "detected",
+because the honest winding sensor tripped on its own and the run measured nothing
+about the frame sensor at all. The campaign caught it.
+
+FLT-S05 is the nearest this campaign comes to a common cause fault, and it is
+worth being precise about what it is and is not. It injects a **common cause** failure, one root cause
 taking both channels at once, which is a single fault by ISO 26262's counting.
 It is not a multi point fault, and it says nothing about the case where the
 frame sensor has been quietly dead for a month before the winding sensor fails.

@@ -10,11 +10,11 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 
 ## Summary
 
-- Faults injected: **20**
-- Detected within budget: **15**
+- Faults injected: **23**
+- Detected within budget: **17**
 - Detected but OUTSIDE budget: **1**
-- Known residual: **4**
-- Verdicts met: **20 / 20**
+- Known residual: **5**
+- Verdicts met: **23 / 23**
 
 ## By fault class
 
@@ -22,7 +22,7 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 |---|---|---|---|---|
 | actuator | 2 | 1 | 0 | 1 |
 | communication | 8 | 7 | 0 | 1 |
-| sensor | 5 | 2 | 1 | 2 |
+| sensor | 8 | 4 | 1 | 3 |
 | timing | 5 | 5 | 0 | 0 |
 
 ## Detection and latency
@@ -40,7 +40,10 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 | FLT-S01 | sensor | SR-10 | FAULT | 12 | 7 | PASS: detected at 12 steps, OUTSIDE the 7 step budget, as documented |
 | FLT-S02 | sensor | SR-03 | FAULT | 1 | 7 | PASS: detected at 1 of 7 steps |
 | FLT-S03 | sensor | SR-10 | FAULT | 1 | 7 | PASS: detected at 1 of 7 steps |
+| FLT-S08 | sensor | SR-10 | FAULT | 27 | 36 | PASS: detected at 27 of 36 steps |
 | FLT-S05 | sensor | SR-10 | RUNNING | n/a | n/a | PASS: residual as documented |
+| FLT-S06 | sensor | SR-11 | FAULT | 1 | 7 | PASS: detected at 1 of 7 steps |
+| FLT-S07 | sensor | SR-11 | RUNNING | n/a | n/a | PASS: residual as documented |
 | FLT-S04 | sensor | SR-09 | RUNNING | n/a | n/a | PASS: residual as documented |
 | FLT-A01 | actuator | SR-04 | FAULT | 7 | 7 | PASS: detected at 7 of 7 steps |
 | FLT-A02 | actuator | SR-09 | RUNNING | n/a | n/a | PASS: residual as documented |
@@ -65,8 +68,15 @@ Catalogued deliberately. A campaign reporting complete detection would not be cr
 
 - **Class:** sensor
 - **Challenges:** SR-10
-- **Observed:** winding reached 1167 C while the sensor reported 40 C and the drive kept running
+- **Observed:** winding reached 1617 C while the sensor reported 40 C and the drive kept running
 - **Why it cannot be closed here:** MEASURED against DUT v1.5, with the redundancy in place: the winding ran away past 1500 C while both sensors reported 40 C and the drive kept running, which is exactly what the single channel design did. Redundancy defeats INDEPENDENT failures and does nothing whatever about common cause, and two sensors are two channels only for as long as they fail independently. A shared supply, a shared ADC reference, a shared harness or a shared connector makes them one channel wearing two names. This entry exists so that adding the second source cannot be read as closing SR-10 in general: it closes the independent case and names what is left. Closing this one is not a software change. It needs the two channels to be diverse in a way this model does not represent: different sensing principle, different supply, different conversion path, and an FMEDA to show the common cause fraction is acceptable.
+
+### FLT-S07: Frame sensor reads low, removing the backstop silently
+
+- **Class:** sensor
+- **Challenges:** SR-11
+- **Observed:** undetected, as documented
+- **Why it cannot be closed here:** A two channel design detects DISAGREEMENT, and a frame sensor reading low never disagrees with anything: it reads cooler than the winding, which is exactly what a healthy frame does. So the second channel goes quietly dead and the backstop it provides disappears with no indication whatever. This entry is deliberately run WITHOUT the stalled rotor precondition its siblings carry, and the reason is the interesting part. With a stall the winding sensor is honest and trips on its own, so the run would report "detected" while measuring nothing about the frame sensor at all. The first version of this entry did exactly that and the campaign caught it. What that exposes is the KIND of fault this is: a LATENT one. It has no effect by itself and removes a backstop that only matters once the primary channel has also failed. Demonstrating the consequence needs a dual point injection, latent plus primary, which this harness does not do and which is named as a scope limit in the safety argument. ISO 26262's latent fault metrics exist precisely for this combination, and this entry is the closest the catalog comes to one. Closing it needs a third channel, or a plausibility check of the frame reading against commanded current and elapsed time, which is the same estimator FLT-S01 needs and would serve both.
 
 ### FLT-S04: Speed feedback stuck at zero
 
@@ -89,3 +99,4 @@ At least one fault challenging each of these is either undetected or detected ou
 - **SR-06**: Repeated or stale responses shall not be accepted as evidence of liveness
 - **SR-09**: Telemetry shall remain readable in STO, so the cause is diagnosable
 - **SR-10**: Overtemperature protection shall not be defeated by a sensor reporting implausible values
+- **SR-11**: A contradiction between temperature channels shall be reported as a sensor fault, not as an overtemperature, and shall stop the drive only while torque is commanded

@@ -2,6 +2,8 @@
 
 Generated from `catalog/faults.yaml` and `docs/HAZARD_ANALYSIS.md`. Do not edit by hand.
 
+**This is declared linkage, not measured outcome.** It shows which fault challenges which requirement and what the catalog expects. What actually happened is in `coverage.md`, and a fault whose declaration does not match its run fails the build rather than appearing here as coverage.
+
 Both directions are enforced and the build fails on a gap in either: a requirement with no fault is a hole in the argument, and a fault with no requirement is scope creep or a typo that would inflate coverage.
 
 | Requirement | Challenged by | Verdict |
@@ -15,7 +17,8 @@ Both directions are enforced and the build fails on a gap in either: a requireme
 | SR-07 | FLT-T04 | satisfied |
 | SR-08 | FLT-T02, FLT-T03, FLT-T04 | satisfied |
 | SR-09 | FLT-S04, FLT-A02, FLT-T05 | **NOT satisfied**, undetected: FLT-S04, FLT-A02 |
-| SR-10 | FLT-S01, FLT-S03, FLT-S05 | **NOT satisfied**, detected outside budget: FLT-S01; undetected: FLT-S05 |
+| SR-10 | FLT-S01, FLT-S03, FLT-S08, FLT-S05 | **NOT satisfied**, detected outside budget: FLT-S01; undetected: FLT-S05 |
+| SR-11 | FLT-S06, FLT-S07 | **NOT satisfied**, undetected: FLT-S07 |
 
 | Fault | Class | Challenges | Expectation |
 |---|---|---|---|
@@ -30,7 +33,10 @@ Both directions are enforced and the build fails on a gap in either: a requireme
 | FLT-S01 | sensor | SR-10 | late |
 | FLT-S02 | sensor | SR-03 | detected |
 | FLT-S03 | sensor | SR-10 | detected |
+| FLT-S08 | sensor | SR-10 | detected |
 | FLT-S05 | sensor | SR-10 | residual |
+| FLT-S06 | sensor | SR-11 | detected |
+| FLT-S07 | sensor | SR-11 | residual |
 | FLT-S04 | sensor | SR-09 | residual |
 | FLT-A01 | actuator | SR-04 | detected |
 | FLT-A02 | actuator | SR-09 | residual |
