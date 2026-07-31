@@ -55,6 +55,7 @@ falsified by running the campaign would not be worth making.
 | Hazard analysis: 6 hazards, 6 safety goals, 10 safety requirements, each with an FTTI budget | `docs/HAZARD_ANALYSIS.md` | The faults are derived, not invented |
 | Fault catalog: 23 entries across sensor, actuator, communication and timing, with three outcomes: detected, detected late, residual | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
 | Campaign: one fault per run, fresh device, fixed step budget, no randomness | `src/fih/campaign.py` | Reproducibility. The same fault gives the same result, asserted by test |
+| Latent plus primary pair campaign, with both members also run alone | `catalog/dual_point.yaml`, `report/dual_point.md` | A latent fault is defined by the difference, so the difference is what is reported |
 | Bidirectional traceability, build fails on a gap in either direction | `src/fih/traceability.py`, `report/traceability.md` | Every requirement is verified and every fault answers a requirement |
 | Coverage report with latency against each FTTI | `report/coverage.md` | Detection *in time*, not just detection |
 | 144 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
@@ -359,37 +360,38 @@ analysis now carries HAZ-07 and HAZ-08, SG-07 and SR-11, and a change impact
 table per release. The underlying process failure, changing the item twice
 without revisiting the analysis, is recorded there rather than quietly corrected.
 
-**Single fault at a time.** Each run injects exactly one fault. Multi point
-faults, and in particular a latent fault plus a second fault, are not covered.
-This is a real gap: ISO 26262 latent fault metrics exist precisely because that
-combination is where redundant designs fail.
+**Single fault at a time, except for catalogued pairs.** The main campaign
+injects exactly one fault per run. A separate pair campaign, `report/dual_point.md`,
+injects a **latent fault plus a primary one**, which is where a two channel
+design actually fails, and it changed the reading of this whole argument.
 
-FLT-S07 is the closest the catalog comes to a genuine latent fault: a frame
-sensor reading low has no effect by itself and removes a backstop that only
-matters once the primary channel has also failed. Demonstrating the consequence
-needs a dual point injection, which this harness does not do. The first version
-of that entry carried a stalled rotor precondition and reported "detected",
-because the honest winding sensor tripped on its own and the run measured nothing
-about the frame sensor at all. The campaign caught it.
+The result deserves its own statement, because it qualifies everything the
+second temperature source is credited with above:
 
-FLT-S05 is the nearest this campaign comes to a common cause fault, and it is
-worth being precise about what it is and is not. It injects a **common cause** failure, one root cause
-taking both channels at once, which is a single fault by ISO 26262's counting.
-It is not a multi point fault, and it says nothing about the case where the
-frame sensor has been quietly dead for a month before the winding sensor fails.
-That case is where a redundant design actually gets hurt, it needs a latent
-fault model and periodic diagnostics this item does not have, and it is not
-covered here.
+| | Alone | With the frame channel already dead |
+|---|---|---|
+| FLT-S01, sensor stuck | detected, bounded at 207 C | **undetected, 1617 C** |
+| FLT-S08, sensor stuck under overload | detected in time, 117 C | **undetected, 383 C** |
 
-**The thermal model's steady state is now validated against the data sheet, its
-dynamics are not.** Rated continuous duty equilibrates at the permitted winding
-temperature per IEC 60034-1 S1 duty, which is a checkable criterion the model
-originally failed by a factor of 8.3. The thermal *time constant* remains
-compressed and unvalidatable, so the split matters: the validated half must not
-be read as lending credibility to the unvalidated one. See `VALIDATION.md` in the
-device repository.
+FLT-S08 is the entry that justifies having the second source at all: caught in
+time, inside the limit. A latent fault removes exactly that. So the second
+temperature source bounds the damage **for as long as it is working**, and
+nothing in this design notices when it stops. A safety mechanism nobody checks
+is a safety mechanism you do not have.
 
-**The DUT's parameters are grounded, its dynamics are not.** Speeds, currents,
+Two control pairs are catalogued for the opposite reason. DP-03 and DP-04 pair
+the same latent fault with primaries the design handles anyway, and both come
+out unchanged. Without them the pair campaign would read as "two faults are
+worse than one", which is true and says nothing; with them, the claim is the
+sharper one, that a latent fault is consequential only in combination with
+something that needed the mechanism it removed.
+
+What remains out of scope: combinations beyond two, and any quantity resembling
+an ISO 26262 **latent fault metric**, which is computed over a real hardware
+architecture with failure rates in FIT. What this measures is whether four
+specific catalogued combinations defeat the design.
+
+**The DUT's parameters are grounded**The DUT's parameters are grounded, its dynamics are not.** Speeds, currents,
 torques and the temperature limit come from a Siemens SIMOTICS S-1FK2 datasheet,
 archived in `docs/datasheets/` and labelled `[DS]` at each constant. The thermal
 and speed *response* constants are fitted or illustrative and are labelled
@@ -418,9 +420,17 @@ In the order a real project would do them:
    actually needs: a different sensing principle, supply and conversion path,
    plus an FMEDA to show the common cause fraction is acceptable. Note this is
    the first item on this list that cannot be done in software.
-3. Multi point fault injection, starting with a latent diagnostic failure plus a
-   primary fault, which is the case FLT-S05 deliberately does not cover.
-4. An FMEDA over a real bill of materials with SN 29500 rates, which is the only
-   route to a defensible diagnostic coverage figure.
-5. Running the campaign against a real drive over the actual fieldbus, at which
+3. ~~Multi point fault injection, starting with a latent diagnostic failure plus
+   a primary fault~~ **done.** It found that a dead frame channel turns FLT-S01
+   from a bounded 207 C excursion into an undetected 1617 C runaway, and defeats
+   FLT-S08, the very case the redundancy was credited with handling.
+4. **A diagnostic on the safety mechanism itself**, which is what that finding
+   asks for. Not a better mechanism: a periodic check that the frame channel
+   still responds, since a frame reading that never moves while the winding
+   rises is stuck and is detectable without a third sensor. This is the item
+   that would close DP-01 and DP-02.
+5. An FMEDA over a real bill of materials with SN 29500 rates, which is the only
+   route to a defensible diagnostic coverage figure. The pair campaign now
+   supplies the latent fault observations such an analysis would need.
+6. Running the campaign against a real drive over the actual fieldbus, at which
    point the transport faults stop being decorators and become a broken cable.

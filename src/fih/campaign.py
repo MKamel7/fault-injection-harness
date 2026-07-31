@@ -104,12 +104,28 @@ _BEHAVIOURAL_HOOKS = {
 }
 
 
-def run(fault: Fault, steps: int = RUN_STEPS) -> RunResult:
-    """Inject one fault and observe the device for `steps` steps."""
+def run(fault: Fault, steps: int = RUN_STEPS,
+        latent: Fault | None = None) -> RunResult:
+    """Inject a fault and observe the device for `steps` steps.
+
+    `latent` arms a SECOND fault first, one that is already present when the
+    primary arrives. That is the ISO 26262 sense of a latent fault: it does not
+    violate a safety goal by itself and it is not detected, so it sits there
+    silently removing a safety mechanism that only matters later. Its
+    precondition is deliberately NOT applied; the run is set up for the primary
+    fault, and the latent one is simply already true when it happens.
+
+    Everything else is identical to a single fault run on purpose, so a pair can
+    be compared directly against each of its members run alone. That comparison
+    is the whole point: a latent fault is defined by having no effect until it
+    is combined with something.
+    """
     dut = ActuatorFaultedController()
     tx = FaultyTransport(SimTransport(dut, steps_per_request=0))
     driver = MotorControllerDriver(tx)
 
+    if latent is not None:
+        _arm(latent, dut, tx)
     _arm(fault, dut, tx)
 
     rejected = False

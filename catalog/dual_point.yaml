@@ -1,0 +1,87 @@
+# Latent fault plus primary fault.
+#
+# Each entry names a fault that is already present and unnoticed, and a second
+# fault that arrives later. The single fault catalog cannot express this, and it
+# is where a two channel design actually gets hurt: not when a sensor fails, but
+# when a sensor fails while the channel that was supposed to catch it has been
+# quietly dead.
+#
+# The control entries are as important as the failures. A latent fault that
+# changed every outcome would not be latent.
+version: 1
+
+pairs:
+  - id: DP-01
+    title: Frame sensor already dead when the winding sensor starts lying
+    latent: FLT-S07
+    primary: FLT-S01
+    challenges: [SR-10, SR-11]
+    expectation: violated
+    rationale: >
+      The headline result of the pair campaign, and the strongest argument in
+      this project for why latent faults are counted separately. Alone, FLT-S01
+      is caught at step 12 with the winding at 207 C: past its limit, but
+      bounded, because the frame keeps heating while the winding sensor insists
+      on ambient and that contradiction is visible. With the frame sensor
+      already stuck, there is nothing left to contradict the lie, and the same
+      fault runs to 1617 C entirely undetected.
+      So the second temperature source turns an unbounded excursion into a
+      bounded one exactly as long as it is working, and there is nothing in the
+      design that notices when it stops. A safety mechanism nobody checks is a
+      safety mechanism you do not have, which is what the ISO 26262 latent fault
+      metric exists to measure.
+      Closing this needs a diagnostic ON the safety mechanism itself, not a
+      better safety mechanism: a periodic check that the frame channel still
+      responds. A frame reading that never moves while the winding rises is
+      stuck, and that is detectable without a third sensor.
+
+  - id: DP-02
+    title: Frame sensor already dead when a lying sensor meets a sustained overload
+    latent: FLT-S07
+    primary: FLT-S08
+    challenges: [SR-10, SR-11]
+    expectation: violated
+    rationale: >
+      The uncomfortable one, because FLT-S08 is the case the redundancy
+      HANDLES. Alone it is caught at step 27 with the winding at 117 C, inside
+      both its budget and its limit, and it is the entry that justifies calling
+      the second temperature source worth having.
+      With the frame channel already dead the same fault reaches 383 C
+      undetected. The protection that the design's best result depends on is
+      exactly the protection that a latent fault removes, which is a more
+      pointed way of saying what DP-01 says: the value of a safety mechanism is
+      conditional on somebody checking it is alive.
+
+  - id: DP-03
+    title: Frame sensor already dead when the rotor stalls, sensors otherwise honest
+    latent: FLT-S07
+    primary: FLT-A01
+    challenges: [SR-04]
+    expectation: handled
+    rationale: >
+      The control case, and the reason the other two mean anything. Here the
+      winding sensor is honest, so the primary limit sees the stall and trips at
+      step 7 with the winding at 139.6 C, inside its limit. The dead frame
+      channel changes nothing whatever: it was never the mechanism doing the
+      work.
+      That is the definition of a latent fault rather than a bad one. It is
+      consequential only in combination with a fault that needed the mechanism
+      it removed, and an entry like this one is what stops the pair campaign
+      from reading as "everything gets worse when you add a second fault".
+
+  - id: DP-04
+    title: Frame sensor already dead when the winding sensor drifts far low
+    latent: FLT-S07
+    primary: FLT-S03
+    challenges: [SR-10]
+    expectation: handled
+    rationale: >
+      A second control case, and it survives for a reason worth stating. A 60 C
+      negative bias drives the reported winding temperature below ambient, to
+      about -20 C, so even a frame sensor frozen at ambient still reads far
+      hotter than the winding claims to be. The contradiction is visible
+      regardless.
+      The mechanism still works, but only because this particular lie is
+      absurd rather than plausible. It is a reminder that surviving one
+      combination is not evidence of surviving the class, and that the margin
+      here comes from the size of the error rather than from the design.
