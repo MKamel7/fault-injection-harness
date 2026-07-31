@@ -169,12 +169,17 @@ ISO 26262 sense: that requires an FMEDA with component failure rates in FIT, and
 there are none here. Latencies are in **simulation steps**, never seconds,
 because the device's thermal time scale is deliberately compressed.
 
-**Nothing here is independently reviewed.** The device, the hazard analysis, the
-requirements, the fault catalog, the acceptance criteria and the tests all come
-from one author in one effort. Both ISO 26262 and IEC 61508 treat independence of
-assessment as a first order concern, scaled with ASIL or SIL, and for good
-reason: the author of a hazard analysis is the person least able to notice the
-hazard they did not think of. That gap does not close by writing more tests.
+**It has been independently reviewed, and not independently assessed.**
+`docs/REVIEW.md` records three rounds, including a reviewer at TU Munich who
+found that the overload channel had no current sensor and therefore privileged
+access to the plant, which made the headline diversity result partly
+self-fulfilling. Two earlier model reviews had missed it.
+
+What remains open is a qualified assessment, meaning a judgement by an assessor
+against a standard. Both ISO 26262 and IEC 61508 scale required independence with
+ASIL or SIL, for the reason that the author of a hazard analysis is the person
+least able to notice the hazard they did not think of. Review narrows that gap.
+It does not close it.
 
 The work is **well verified and essentially not validated**. Verified: the
 harness does what it claims, reproducibly, with the evidence regenerated and

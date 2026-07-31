@@ -27,7 +27,7 @@ Specifically **not** claimed:
 | An ASIL | ASIL is assigned by a vehicle level HARA over severity, exposure and controllability. A bench simulation has no vehicle context, no driver, no operational situation. There is nothing to classify. |
 | Diagnostic coverage, SPFM, LFM | Those are FMEDA quantities and need component failure rates in FIT, from a source such as SN 29500 or IEC 62380, applied to a real bill of materials. This device has no components, so no rate exists to integrate. |
 | Conformance to any standard | Requires an assessor, an assessment, and the standard text. |
-| That this evidence is independently confirmed | Everything here was produced by one author in one effort, with no second party review. Both standards scale required independence with ASIL or SIL. See section 5. |
+| That this evidence is independently ASSESSED | It has been independently REVIEWED, and `docs/REVIEW.md` records by whom and what they found. An assessment is a judgement made by an assessor against a standard, and no such person has looked at this. |
 | That the DUT is production code | It is a simulation, deliberately, so that faults can be injected at points a real drive would not expose. |
 
 What the report **does** compute is **detection coverage over the injected fault
@@ -414,12 +414,16 @@ In the order a real project would do them:
    and still the cheapest. Until it happens every other entry is an improvement
    to evidence nobody has checked.
 
-   **In progress.** `docs/REVIEW_BRIEF.md` is the brief handed to reviewers, and
-   the outcome will be recorded in `docs/REVIEW.md` with what was looked at and
-   what was found, including "nothing" where that is the answer. Note the level
-   honestly when it lands: a competent peer who did not write the work is real
-   independence and is **not** a qualified assessment, and the two should not be
-   described as if they were the same thing.
+   **Partly done.** `docs/REVIEW.md` records three rounds: two cold context
+   model reviews, an adversarial self review, and an independent peer review by
+   a reviewer at TU Munich. That last one found the sharpest defect in the
+   project, that the overload channel had no current sensor and therefore had
+   privileged access to the plant, which made the headline diversity result
+   partly self-fulfilling. Neither model review came near it.
+
+   What remains open is a **qualified assessment**: a judgement by an assessor
+   against a standard. Independent review and qualified assessment are not the
+   same thing and `docs/REVIEW.md` keeps them apart deliberately.
 1. ~~A second temperature source in the DUT~~ **done, and later superseded by a diverse third channel in DUT v3.0.** SR-10 moved
    from unsatisfied to satisfied for independent sensor failures, and FLT-S05
    was added to name the common cause case that remains. It was, as predicted,
