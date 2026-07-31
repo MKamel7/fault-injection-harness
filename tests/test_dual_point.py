@@ -249,8 +249,11 @@ def test_the_dual_point_report_shows_both_members_and_the_combination() -> None:
     for pair in PAIRS:
         assert pair.id in text
         assert pair.latent in text and pair.primary in text
-    assert "Primary alone" in text and "Combined" in text
+    assert "Second alone" in text and "Combined" in text
     assert "control cases" in text
+    # the two kinds must be distinguishable in the rendered table, or a dual
+    # point fault reads as a latent one
+    assert "latent" in text and "dual point" in text
     assert "not** an ISO 26262 latent fault metric" in text
 
 
