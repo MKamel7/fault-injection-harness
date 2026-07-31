@@ -9,8 +9,8 @@ protection layer configured as **both AUTOSAR E2E and PROFIsafe**, and the two
 are compared on the same fault set.
 
 ```
-27 faults   20 detected in time   4 residual   4 latent-plus-primary pairs
-176 tests   100% branch coverage   ruff + mypy strict   all gated in CI
+27 faults   23 detected in time   0 detected late   4 residual   5 catalogued pairs
+204 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
 3 of 11 safety requirements currently NOT met, each named with why
 ```
 
@@ -32,7 +32,7 @@ build.
 report judges latency against it. Noticing a fault after the hazard has occurred
 is not a safety mechanism.
 
-**The gaps are named.** Four of the twenty faults are residual: the design cannot
+**The gaps are named.** Four of the twenty seven faults are residual: the design cannot
 detect them. Each one records what design change would be needed, and one of them
 exists specifically to stop a fix being oversold. A campaign reporting complete
 detection would not be credible.
