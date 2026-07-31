@@ -53,12 +53,26 @@ class SensorFaultedController(MotorControllerSim):
         self.temp_bias_c: float = 0.0
         self.housing_stuck_at: float | None = None
         self.speed_stuck_at: float | None = None
+        self.current_stuck_at: float | None = None
+        self.current_gain: float = 1.0
 
     def read_winding_c(self) -> float:
         true = super().read_winding_c()
         if self.temp_stuck_at is not None:
             return self.temp_stuck_at
         return true + self.temp_bias_c
+
+    def read_current_ratio(self) -> float:
+        """The current sensor can lie too, which it could not until DUT v3.1.
+
+        Before the device had a current seam this channel read plant truth, so
+        every result crediting the diverse third channel was partly
+        self-fulfilling: the temperature sensors were allowed to fail and this
+        one was not.
+        """
+        if self.current_stuck_at is not None:
+            return self.current_stuck_at
+        return super().read_current_ratio() * self.current_gain
 
     def read_housing_c(self) -> float:
         # Only faulted by the COMMON CAUSE entry. Every other sensor fault
@@ -154,6 +168,28 @@ def torque_loss(dut: ActuatorFaultedController) -> None:
     dut.torque_lost = True
 
 
+def current_stuck(dut: SensorFaultedController, at_ratio: float) -> None:
+    """The current sensor reports a fixed value however hard the drive works."""
+    dut.current_stuck_at = float(at_ratio)
+
+
+def current_gain_error(dut: SensorFaultedController, gain: float) -> None:
+    """The current sensor is proportionally wrong. Every reading is plausible."""
+    dut.current_gain = float(gain)
+
+
+def stall_at_current(dut: ActuatorFaultedController, ratio: float) -> None:
+    """Rotor blocked, held at a specific current rather than assumed maximum.
+
+    The data sheet gives no locked rotor current, and a servo on a controlled
+    drive draws what its torque limit allows. A rotor blocked at rated current is
+    a slow thermal hazard, not the fast overcurrent event a stall was previously
+    assumed to always be.
+    """
+    dut.stall_current_ratio = float(ratio)
+    dut.inject_stall(True)
+
+
 def degrade_cooling(dut: SensorFaultedController, scale: float) -> None:
     """The plant itself gets worse: a blocked fan, a clogged filter.
 
@@ -177,4 +213,7 @@ DEVICE_HOOKS: dict[str, Callable[..., None]] = {
     "stall_rotor": stall_rotor,
     "torque_loss": torque_loss,
     "degrade_cooling": degrade_cooling,
+    "current_stuck": current_stuck,
+    "current_gain_error": current_gain_error,
+    "stall_at_current": stall_at_current,
 }

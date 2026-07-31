@@ -294,8 +294,8 @@ def dual_point_markdown(pairs: tuple[Pair, ...],
         "mechanism that only matters later. Each row therefore shows the pair "
         "AND both members alone, because the difference is the finding.",
         "",
-        "| Pair | Latent | Primary | Primary alone | Combined | Verdict |",
-        "|---|---|---|---|---|---|",
+        "| Pair | Kind | First | Second | Second alone | Combined | Verdict |",
+        "|---|---|---|---|---|---|---|",
     ]
     for pair in pairs:
         result = results[pair.id]
@@ -304,16 +304,23 @@ def dual_point_markdown(pairs: tuple[Pair, ...],
         combined = ("detected" if result.combined.detected else "**undetected**")
         combined += f", {result.combined.true_temperature_c:.0f} C"
         ok, why = verdict_pair(pair, result)
+        kind = "latent" if pair.is_latent_kind else "**dual point**"
         lines.append(
-            f"| {pair.id} | {pair.latent} | {pair.primary} | {alone} | {combined} "
-            f"| {'PASS' if ok else 'FAIL'}: {why} |"
+            f"| {pair.id} | {kind} | {pair.latent} | {pair.primary} | {alone} "
+            f"| {combined} | {'PASS' if ok else 'FAIL'}: {why} |"
         )
 
     violated = [p for p in pairs if p.expects_violation]
     lines += [
         "",
-        f"**{len(violated)} of {len(pairs)} pairs violate a safety goal that "
-        f"neither member violates alone.**",
+        f"**{len(violated)} of {len(pairs)} combinations violate a safety goal "
+        f"that neither member violates alone.**",
+        "",
+        "Two KINDS are catalogued and they are not interchangeable. A "
+        "**latent** fault is undetected on its own and silently removes a "
+        "mechanism that only matters later. A **dual point** fault is two "
+        "faults the design detects perfectly well individually, which together "
+        "defeat it because each removes the channel that catches the other.",
         "",
         "## Why the control cases are here",
         "",

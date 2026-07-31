@@ -15,6 +15,7 @@ pairs:
     title: Frame sensor already dead when the winding sensor starts lying
     latent: FLT-S07
     primary: FLT-S01
+    kind: latent_plus_primary
     challenges: [SR-10, SR-11]
     expectation: handled
     rationale: >
@@ -38,6 +39,7 @@ pairs:
     title: Frame sensor already dead when a lying sensor meets a sustained overload
     latent: FLT-S07
     primary: FLT-S08
+    kind: latent_plus_primary
     challenges: [SR-10, SR-11]
     expectation: handled
     rationale: >
@@ -59,6 +61,7 @@ pairs:
     title: Frame sensor already dead when the rotor stalls, sensors otherwise honest
     latent: FLT-S07
     primary: FLT-A01
+    kind: latent_plus_primary
     challenges: [SR-04]
     expectation: handled
     rationale: >
@@ -76,6 +79,7 @@ pairs:
     title: Frame sensor already dead when the winding sensor drifts far low
     latent: FLT-S07
     primary: FLT-S03
+    kind: latent_plus_primary
     challenges: [SR-10]
     expectation: handled
     rationale: >
@@ -88,3 +92,32 @@ pairs:
       absurd rather than plausible. It is a reminder that surviving one
       combination is not evidence of surviving the class, and that the margin
       here comes from the size of the error rather than from the design.
+
+  - id: DP-05
+    title: Current sensor stuck when both temperature sensors are also lying
+    latent: FLT-S09
+    primary: FLT-S05
+    kind: dual_point
+    challenges: [SR-10]
+    expectation: violated
+    rationale: >
+      A DUAL POINT fault, not a latent one, and the distinction matters. Each
+      member is detected perfectly well on its own: a stuck current sensor is
+      caught at step 20 by the winding sensor, and both temperature sensors
+      lying is caught at step 2 by the overload channel. Neither is silent.
+      Together they are an undetected runaway past 1800 C, because each fault
+      removes exactly the channel that catches the other.
+      This pair was UNREACHABLE before DUT v3.1, and its absence is what made
+      the diverse third channel look stronger than it is. While the overload
+      channel read plant current directly it could not be faulted, so the
+      campaign could only ever demonstrate the flattering direction. Giving it a
+      sensor made the case expressible, and it immediately violated.
+      What it does NOT overturn: the three temperature channel findings the
+      diverse channel genuinely closed. What it does overturn is the wider claim
+      that diversity closed common cause. It closed common cause BETWEEN THE TWO
+      TEMPERATURE SENSORS. A common cause spanning the temperature sensors and
+      the current sensor, a shared supply, reference or ADC, is exactly the
+      failure this pair describes and the design does not survive it.
+      Closing it needs a fourth channel that shares nothing with the other
+      three, or a plausibility check between commanded torque and reported
+      current that would notice a current sensor disagreeing with the command.

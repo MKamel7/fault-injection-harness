@@ -10,19 +10,19 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 
 ## Summary
 
-- Faults injected: **24**
-- Detected within budget: **20**
+- Faults injected: **27**
+- Detected within budget: **23**
 - Detected but OUTSIDE budget: **0**
 - Known residual: **4**
-- Verdicts met: **24 / 24**
+- Verdicts met: **27 / 27**
 
 ## By fault class
 
 | Class | Injected | Detected in time | Detected late | Residual |
 |---|---|---|---|---|
-| actuator | 3 | 2 | 0 | 1 |
+| actuator | 4 | 3 | 0 | 1 |
 | communication | 8 | 7 | 0 | 1 |
-| sensor | 8 | 6 | 0 | 2 |
+| sensor | 10 | 8 | 0 | 2 |
 | timing | 5 | 5 | 0 | 0 |
 
 ## Detection and latency
@@ -45,12 +45,15 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 | FLT-S06 | sensor | SR-11 | FAULT | 1 | 22 | PASS: detected at 1 of 22 steps |
 | FLT-S07 | sensor | SR-11 | RUNNING | n/a | n/a | PASS: residual as documented |
 | FLT-S04 | sensor | SR-09 | RUNNING | n/a | n/a | PASS: residual as documented |
+| FLT-S09 | sensor | SR-10 | FAULT | 20 | 22 | PASS: detected at 20 of 22 steps |
+| FLT-S10 | sensor | SR-10 | FAULT | 6 | 22 | PASS: detected at 6 of 22 steps |
+| FLT-A04 | actuator | SR-04 | FAULT | 54 | 200 | PASS: detected at 54 of 200 steps |
 | FLT-A01 | actuator | SR-04 | FAULT | 2 | 22 | PASS: detected at 2 of 22 steps |
 | FLT-A02 | actuator | SR-09 | RUNNING | n/a | n/a | PASS: residual as documented |
 | FLT-A03 | actuator | SR-03 | FAULT | 770 | 1041 | PASS: detected at 770 of 1041 steps |
 | FLT-T01 | timing | SR-05 | FAULT | 10 | 11 | PASS: detected at 10 of 11 steps |
 | FLT-T02 | timing | SR-05, SR-08 | FAULT | 10 | 11 | PASS: detected at 10 of 11 steps |
-| FLT-T03 | timing | SR-08 | FAULT | 3 | 20 | PASS: detected at 3 of 20 steps |
+| FLT-T03 | timing | SR-08 | FAULT | 4 | 20 | PASS: detected at 4 of 20 steps |
 | FLT-T04 | timing | SR-07, SR-08 | FAULT | 2 | 20 | PASS: detected at 2 of 20 steps |
 | FLT-T05 | timing | SR-09 | FAULT | 0 (rejected) | 1 | PASS: telemetry readable in the safe state |
 

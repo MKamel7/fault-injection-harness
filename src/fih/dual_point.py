@@ -40,8 +40,16 @@ DEFAULT_PAIRS = Path(__file__).resolve().parents[2] / "catalog" / "dual_point.ya
 #: control cases.
 PAIR_EXPECTATIONS = {"violated", "handled"}
 
+#: What KIND of two fault combination this is. The distinction is real and
+#: ISO 26262 keeps it: a latent fault is undetected alone and silently removes a
+#: mechanism, whereas a dual point fault is two faults each of which the design
+#: detects perfectly well on its own, which together defeat it. The second is not
+#: a weaker version of the first, and the campaign would misdescribe it if the
+#: schema only knew about one.
+PAIR_KINDS = {"latent_plus_primary", "dual_point"}
+
 _REQUIRED = {"id", "title", "latent", "primary", "challenges", "expectation",
-             "rationale"}
+             "rationale", "kind"}
 
 
 @dataclass(frozen=True)
@@ -55,6 +63,11 @@ class Pair:
     challenges: tuple[str, ...]
     expectation: str
     rationale: str
+    kind: str = "latent_plus_primary"
+
+    @property
+    def is_latent_kind(self) -> bool:
+        return self.kind == "latent_plus_primary"
 
     @property
     def expects_violation(self) -> bool:
@@ -130,6 +143,9 @@ def _parse(raw: dict[str, Any], seen: set[str],
         raise CatalogError(
             f"{pair_id}: expectation {raw['expectation']!r} not in "
             f"{sorted(PAIR_EXPECTATIONS)}")
+    if raw["kind"] not in PAIR_KINDS:
+        raise CatalogError(
+            f"{pair_id}: kind {raw['kind']!r} not in {sorted(PAIR_KINDS)}")
     if raw["latent"] == raw["primary"]:
         raise CatalogError(f"{pair_id}: a fault cannot be paired with itself")
 
@@ -149,6 +165,7 @@ def _parse(raw: dict[str, Any], seen: set[str],
         challenges=tuple(str(c) for c in raw["challenges"]),
         expectation=str(raw["expectation"]),
         rationale=" ".join(str(raw["rationale"]).split()),
+        kind=str(raw["kind"]),
     )
 
 
@@ -170,9 +187,12 @@ def run_all_pairs(pairs: tuple[Pair, ...],
 
 def verdict(pair: Pair, result: PairResult) -> tuple[bool, str]:
     """Did the pair behave as the catalog records? Returns (ok, explanation)."""
-    if not result.latent_is_silent_alone:
+    if pair.is_latent_kind and not result.latent_is_silent_alone:
         return False, (f"{pair.latent} is not latent: it is detected or hazardous "
                        f"on its own, so this pair proves nothing about latency")
+    if not pair.is_latent_kind and result.latent_is_silent_alone:
+        return False, (f"{pair.latent} is undetected on its own, so this is a "
+                       f"latent fault rather than the dual point fault recorded")
 
     if pair.expects_violation:
         if not result.safety_goal_violated:

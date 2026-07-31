@@ -31,7 +31,7 @@ Specifically **not** claimed:
 | That the DUT is production code | It is a simulation, deliberately, so that faults can be injected at points a real drive would not expose. |
 
 What the report **does** compute is **detection coverage over the injected fault
-set**: of the 24 faults in this catalog, how many the design detects, how many
+set**: of the 27 faults in this catalog, how many the design detects, how many
 it detects in time, and after how many steps. That is a statement about this catalog and nothing wider. The two
 get conflated constantly and the distinction is the first thing an assessor
 checks.
@@ -53,7 +53,7 @@ falsified by running the campaign would not be worth making.
 | Evidence | Where | What it supports |
 |---|---|---|
 | Hazard analysis: 8 hazards, 7 safety goals, 11 safety requirements, each with an FTTI budget | `docs/HAZARD_ANALYSIS.md` | The faults are derived, not invented |
-| Fault catalog: 24 entries across sensor, actuator, communication and timing, with three outcomes: detected, detected late, residual | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
+| Fault catalog: 27 entries across sensor, actuator, communication and timing, with three outcomes: detected, detected late, residual | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
 | Campaign: one fault per run, fresh device, fixed step budget, no randomness | `src/fih/campaign.py` | Reproducibility. The same fault gives the same result, asserted by test |
 | Latent plus primary pair campaign, with both members also run alone | `catalog/dual_point.yaml`, `report/dual_point.md` | A latent fault is defined by the difference, so the difference is what is reported |
 | Bidirectional traceability, build fails on a gap in either direction | `src/fih/traceability.py`, `report/traceability.md` | Every requirement is verified and every fault answers a requirement |
@@ -289,7 +289,7 @@ structure, and no review. Asked "how do you know you have not missed a hazard",
 the honest answer is that we do not.
 
 The same applies to the fault set. Twenty faults were chosen because they were
-considered interesting, not sampled from a defined fault space, so **the 20 of 24
+considered interesting, not sampled from a defined fault space, so **the 23 of 27
 figure describes this catalog and estimates nothing**. There is no confidence
 interval on it and none could be computed without a sampling argument.
 

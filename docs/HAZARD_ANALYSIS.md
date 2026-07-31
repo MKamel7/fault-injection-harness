@@ -11,7 +11,7 @@ The item is an embedded motor controller driving a permanent-magnet synchronous
 servomotor, commanded over a line-based serial protocol, with thermal
 protection, stall handling and a software watchdog.
 
-The device under test is `embedded-test-automation` v3.0, imported as a pinned
+The device under test is `embedded-test-automation` v3.1, imported as a pinned
 dependency. Its operating envelope and protection thresholds are grounded in the
 data sheet for a **Siemens SIMOTICS S-1FK2**, article `1FK2105-6AF10-0SA0`, on a
 SINAMICS S210 drive:
@@ -108,6 +108,19 @@ From the 6,000 rpm limit:
 | +10% (6,600 rpm) | **0.92 ms** |
 | +20% (7,200 rpm) | **1.83 ms** |
 
+**These are a bare rotor LOWER BOUND, not the item's FTTI.** The calculation uses
+maximum motor torque divided by ROTOR inertia alone, and the defined item is a
+machine axis, which necessarily carries a driven mechanism. The data sheet gives
+rotor inertia but not reflected load inertia, gearing, friction, the torque
+actually available above rated speed, or the drive's current loop and field
+weakening behaviour. Any real axis has more inertia than the bare rotor, so the
+real interval is longer, possibly by a lot.
+
+The conclusion this supports is the conservative one: overspeed reaction belongs
+below the supervisory layer. The conclusion it does NOT support is that this
+particular axis has a sub-millisecond FTTI, which would need total reflected
+inertia and a valid torque speed envelope.
+
 The FTTI for overspeed is therefore **under one millisecond**, which the 1 ms
 command layer cannot resolve. That is not a modelling failure, it is the correct
 conclusion: **overspeed reaction belongs in the drive's own fast control loop,
@@ -120,16 +133,16 @@ verify overspeed reaction time. That limit is carried into the safety argument.
 
 ### 7.2 Thermal
 
-Measured on the DUT: at steady running the winding reaches equilibrium at
-**53.1 °C** at 3,000 rpm and **66.2 °C** at 6,000 rpm, both far below the 140 °C
-limit. **Normal operation never trips the thermal protection**, which is correct
-behaviour and means overtemperature is reachable only through a stall or a
-sensor fault. A stalled rotor at 5,000 rpm commanded reaches the limit in
-**4 steps**.
+The free running equilibrium and the stall latency quoted here previously came
+from a speed dependent thermal model that was replaced in v2.0 and rebuilt again
+in v3.0. Rather than restate numbers that go stale, the current figures are
+generated: see `report/coverage.md` for measured detection latencies and the
+per condition budget table in section 9 of this document.
 
-Thermal FTTI is set at **20 steps**, comfortably above the observed 4. It is
-quoted in steps only: P1 deliberately compresses the thermal time scale, so
-converting it to seconds would be meaningless.
+What is stable enough to state in prose: heating follows CURRENT rather than
+speed, so the free running equilibrium depends on load and not on how fast the
+shaft turns, and rated continuous duty settles at the permitted rise with real
+margin below the insulation limit.
 
 ### 7.3 Command channel
 

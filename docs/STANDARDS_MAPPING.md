@@ -80,6 +80,22 @@ say whether the drive decelerates first or whether power is removed immediately.
 | SS2 | Safe Stop 2, 4.2.2.4 | Controlled deceleration to a standstill that is then actively held | Out of scope |
 | SLS | Safely Limited Speed, 4.2.3.4 | Speed kept below a safe limit rather than stopped | Out of scope |
 
+### What the model does NOT show about STO
+
+STO is torque removal with the motor coasting. The simulation removes torque
+correctly, and then sets speed to zero immediately and holds it there, which is
+an ideal brake rather than a coast down.
+
+So this model can verify the STATE logic of STO: that torque is removed, that
+commands are refused, that the condition latches. It cannot verify anything about
+**motion after torque removal**, and for the crushing and entanglement hazards in
+this analysis, residual motion and coast down distance are exactly what matters.
+Zero speed in a faulted step is a modelling convenience and is not evidence that
+the axis has stopped.
+
+Closing this needs rotor speed dynamics separated from torque enable, so that
+after STO the speed decays under inertia, load and friction.
+
 ### Why STO and not SS1, stated rather than glossed
 
 **SS1 would be the better engineering choice for most of these faults**, and the
@@ -168,7 +184,7 @@ not a property a repository can have.
 | **SWE.4** Unit Verification | Unit verification strategy, criteria, results, and bidirectional traceability to detailed design | `docs/TEST_STRATEGY.md` in P1; `src/fih/traceability.py`; 100% branch coverage gated in CI |
 | **SWE.6** Software Qualification Test | Qualification test against software requirements, with results and bidirectional traceability | `catalog/faults.yaml` as the test specification, `report/coverage.md` as the results |
 | **SUP.9** Problem Resolution | Problems recorded, analysed, and their resolution tracked | Residual faults are recorded *as findings with rationale* rather than closed |
-| **SUP.10** Change Request Management | Changes to a verified baseline are controlled | The DUT is pinned to tag v3.0, never to a branch |
+| **SUP.10** Change Request Management | Changes to a verified baseline are controlled | The DUT is pinned to tag v3.1, never to a branch |
 
 The item that carries the most weight is **bidirectional** traceability. ASPICE
 asks for it in both directions deliberately, and this harness enforces both and

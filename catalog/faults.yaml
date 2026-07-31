@@ -335,6 +335,78 @@ faults:
       a single channel item, and named rather than hidden.
 
   # --- actuator -------------------------------------------------------------
+  - id: FLT-S09
+    title: Current sensor stuck at rated
+    fault_class: sensor
+    description: >
+      The overload channel's own sensor reports rated current however hard the
+      drive is working, so the accumulator never grows.
+    injection: {hook: current_stuck, params: {at_ratio: 1.0}}
+    precondition: stalled_rotor
+    challenges: [SR-10]
+    safe_state: STO
+    ftti_steps: 22
+    expectation: detected
+    history: >
+      UNCATALOGUABLE until DUT v3.1, and that is the point of the entry. The
+      overload channel had no sensor: it read exact plant current through a
+      private method, so it could not be lied to while both temperature channels
+      could. Every result crediting the diverse third channel was therefore
+      partly self-fulfilling, which an external reviewer identified by noticing
+      that the generated coverage report says the item has no current sensing
+      while the safety argument describes the channel as operating on measured
+      current.
+      With a real seam the fault exists and is caught, at step 20, by the winding
+      sensor. Diversity working in the other direction, which is the half worth
+      keeping: the temperature channels cover what the current channel cannot see
+      about itself.
+
+  - id: FLT-S10
+    title: Current sensor gain error
+    fault_class: sensor
+    description: >
+      The current sensor is proportionally wrong rather than stuck. Every reading
+      is plausible, and the accumulator grows as the square of a value that is
+      too small.
+    injection: {hook: current_gain_error, params: {gain: 0.5}}
+    precondition: stalled_rotor
+    challenges: [SR-10]
+    safe_state: STO
+    ftti_steps: 22
+    expectation: detected
+    history: >
+      Added with the current measurement seam in DUT v3.1. Still detected,
+      because halving the reported current still leaves a locked rotor reading
+      well above the threshold. It is catalogued anyway: a gain error is the
+      realistic calibration fault, and knowing the channel survives it is worth
+      as much as knowing where it does not.
+
+  - id: FLT-A04
+    title: Rotor blocked while held at static current
+    fault_class: actuator
+    description: >
+      A servo holding position against a jammed axis. The data sheet gives a
+      static current of 6.7 A against a rated 5.6 A, so this is 1.20 times rated
+      rather than the 4.29 a blocked rotor was previously assumed to draw.
+    injection: {hook: stall_at_current, params: {ratio: 1.196}}
+    challenges: [SR-04]
+    safe_state: STO
+    ftti_steps: 200
+    expectation: detected
+    history: >
+      Added after an external reviewer pointed out that the data sheet gives
+      maximum, rated and static current and NO locked rotor current, and that a
+      servo on a controlled drive draws what its torque limit allows when
+      blocked. Treating every stall as maximum current fed the heating factor,
+      the trip threshold and every locked rotor budget.
+      MEASURED, and it changes the conclusion: at maximum current a stall trips
+      in 2 steps with the winding near ambient, which is genuinely an overcurrent
+      event. At static current it trips at step 54 with the winding at 60 C,
+      which is a slow thermal case that happens to be caught by the overload
+      channel rather than a fast overcurrent one. The safety argument's claim
+      that a locked rotor is "what it actually is, an overcurrent event" was too
+      broad: SOME locked rotor scenarios are, and others are not.
+
   - id: FLT-A01
     title: Rotor stalled while torque is commanded
     fault_class: actuator

@@ -6,14 +6,17 @@ The single fault campaign asks what the design detects. This one asks the questi
 
 A latent fault violates no safety goal by itself and is not detected, so nothing announces it. What it does is silently remove a safety mechanism that only matters later. Each row therefore shows the pair AND both members alone, because the difference is the finding.
 
-| Pair | Latent | Primary | Primary alone | Combined | Verdict |
-|---|---|---|---|---|---|
-| DP-01 | FLT-S07 | FLT-S01 | detected, 52 C | detected, 52 C | PASS: handled, as documented |
-| DP-02 | FLT-S07 | FLT-S08 | detected, 49 C | detected, 49 C | PASS: handled, as documented |
-| DP-03 | FLT-S07 | FLT-A01 | detected, 52 C | detected, 52 C | PASS: handled, as documented |
-| DP-04 | FLT-S07 | FLT-S03 | detected, 52 C | detected, 52 C | PASS: handled, as documented |
+| Pair | Kind | First | Second | Second alone | Combined | Verdict |
+|---|---|---|---|---|---|---|
+| DP-01 | latent | FLT-S07 | FLT-S01 | detected, 52 C | detected, 52 C | PASS: handled, as documented |
+| DP-02 | latent | FLT-S07 | FLT-S08 | detected, 49 C | detected, 49 C | PASS: handled, as documented |
+| DP-03 | latent | FLT-S07 | FLT-A01 | detected, 52 C | detected, 52 C | PASS: handled, as documented |
+| DP-04 | latent | FLT-S07 | FLT-S03 | detected, 52 C | detected, 52 C | PASS: handled, as documented |
+| DP-05 | **dual point** | FLT-S09 | FLT-S05 | detected, 52 C | **undetected**, 1329 C | PASS: safety goal violated, winding reached 1329 C undetected |
 
-**0 of 4 pairs violate a safety goal that neither member violates alone.**
+**1 of 5 combinations violate a safety goal that neither member violates alone.**
+
+Two KINDS are catalogued and they are not interchangeable. A **latent** fault is undetected on its own and silently removes a mechanism that only matters later. A **dual point** fault is two faults the design detects perfectly well individually, which together defeat it because each removes the channel that catches the other.
 
 ## Why the control cases are here
 
@@ -44,6 +47,12 @@ DP-03 and DP-04 pair the same latent fault with primaries the design handles any
 - **Expectation:** handled
 - **Challenges:** SR-10
 - A second control case, and it survives for a reason worth stating. A 60 C negative bias drives the reported winding temperature below ambient, to about -20 C, so even a frame sensor frozen at ambient still reads far hotter than the winding claims to be. The contradiction is visible regardless. The mechanism still works, but only because this particular lie is absurd rather than plausible. It is a reminder that surviving one combination is not evidence of surviving the class, and that the margin here comes from the size of the error rather than from the design.
+
+### DP-05: Current sensor stuck when both temperature sensors are also lying
+
+- **Expectation:** violated
+- **Challenges:** SR-10
+- A DUAL POINT fault, not a latent one, and the distinction matters. Each member is detected perfectly well on its own: a stuck current sensor is caught at step 20 by the winding sensor, and both temperature sensors lying is caught at step 2 by the overload channel. Neither is silent. Together they are an undetected runaway past 1800 C, because each fault removes exactly the channel that catches the other. This pair was UNREACHABLE before DUT v3.1, and its absence is what made the diverse third channel look stronger than it is. While the overload channel read plant current directly it could not be faulted, so the campaign could only ever demonstrate the flattering direction. Giving it a sensor made the case expressible, and it immediately violated. What it does NOT overturn: the three temperature channel findings the diverse channel genuinely closed. What it does overturn is the wider claim that diversity closed common cause. It closed common cause BETWEEN THE TWO TEMPERATURE SENSORS. A common cause spanning the temperature sensors and the current sensor, a shared supply, reference or ADC, is exactly the failure this pair describes and the design does not survive it. Closing it needs a fourth channel that shares nothing with the other three, or a plausibility check between commanded torque and reported current that would notice a current sensor disagreeing with the command.
 
 ## Scope, so this is not read as more than it is
 

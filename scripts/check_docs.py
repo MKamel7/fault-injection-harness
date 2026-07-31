@@ -44,6 +44,18 @@ def main() -> int:
     assert pin is not None
     dut = pin.group(1)
 
+    # Values and mechanism names that were retired. A document still quoting one
+    # is describing a model that no longer exists, which is how the hazard
+    # analysis kept a 53.1 C free running equilibrium and a four step stall
+    # through two rebuilds.
+    retired = {
+        "53.1": "free running equilibrium from the speed dependent model",
+        "66.2": "free running equilibrium from the speed dependent model",
+        "OVERTEMP_ESTIMATED": "trip reason from the withdrawn estimator channel",
+        "409.6": "excursion figure from a superseded injection model",
+        "1617": "excursion figure from the two sensor design",
+    }
+
     problems: list[str] = []
     for name in ("README.md", "docs/SAFETY_ARGUMENT.md", "docs/HAZARD_ANALYSIS.md",
                  "docs/STANDARDS_MAPPING.md"):
@@ -60,6 +72,12 @@ def main() -> int:
                 if found != dut:
                     problems.append(
                         f"{name}: claims the DUT is pinned at {found}, it is {dut}")
+
+        for value, why in retired.items():
+            if value in text and "HISTORICAL" not in text[
+                    max(0, text.index(value) - 400):text.index(value)]:
+                problems.append(f"{name}: quotes retired value {value!r} ({why}) "
+                                f"without marking the passage historical")
 
         # a stated fault count must be the real one
         for count in {int(m) for m in re.findall(r"(\d+)\s+faults\b", text)}:

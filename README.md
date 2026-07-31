@@ -9,7 +9,7 @@ protection layer configured as **both AUTOSAR E2E and PROFIsafe**, and the two
 are compared on the same fault set.
 
 ```
-24 faults   20 detected in time   4 residual   4 latent-plus-primary pairs
+27 faults   20 detected in time   4 residual   4 latent-plus-primary pairs
 176 tests   100% branch coverage   ruff + mypy strict   all gated in CI
 3 of 11 safety requirements currently NOT met, each named with why
 ```
@@ -131,7 +131,7 @@ side by side.
 docs/HAZARD_ANALYSIS.md      8 hazards, 7 safety goals, 11 safety requirements with FTTI budgets
 docs/SAFETY_ARGUMENT.md      claim, evidence, and at length what is NOT claimed
 docs/STANDARDS_MAPPING.md    one requirement through the automotive and industrial stacks
-catalog/faults.yaml          the 24 faults, as reviewable data rather than code
+catalog/faults.yaml          the 27 faults, as reviewable data rather than code
 src/fih/campaign.py          one fault per run, deterministic, records what the device did
 src/fih/report.py            judges those runs against the budgets
 src/fih/traceability.py      bidirectional gate; fails the build on a gap either way
@@ -148,7 +148,7 @@ uv run --group dev python scripts/build_report.py   # regenerate report/
 
 The device under test is **imported, not copied**: it is
 [`embedded-test-automation`](https://github.com/MKamel7/embedded-test-automation)
-pinned to tag `v3.0`. Both halves of that matter. Copying would fork the thing
+pinned to tag `v3.1`. Both halves of that matter. Copying would fork the thing
 being verified, so the evidence would no longer refer to the original. Tracking
 `main` would let the device's thresholds move underneath a published coverage
 report, and that has happened at every release: the overheat trip moved, a second
