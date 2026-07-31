@@ -56,21 +56,28 @@ def test_pairs_are_deterministic(pair) -> None:  # type: ignore[no-untyped-def]
     assert run_pair(pair, BY_ID) == run_pair(pair, BY_ID)
 
 
-def test_at_least_one_pair_is_worse_than_either_member(results: dict) -> None:
-    """Otherwise the pair campaign is not exercising latency at all."""
-    changed = [p.id for p in PAIRS if results[p.id].caused_by_the_combination]
-    assert changed, (
-        "no pair changed the outcome, so nothing here demonstrates that a latent "
-        "fault removes a safety mechanism"
-    )
+def test_the_latent_pairs_are_all_handled_and_that_is_recent(results: dict) -> None:
+    """Every pair is currently handled, and two of them were not.
+
+    DP-01 and DP-02 both violated a safety goal until a diverse third channel
+    was added. They are kept rather than deleted, because a pair that stopped
+    violating is the regression test for the change that stopped it, and
+    deleting the case would delete the evidence that the fix mattered.
+    """
+    assert all(not pair.expects_violation for pair in PAIRS)
+    for pair_id in ("DP-01", "DP-02"):
+        assert not results[pair_id].safety_goal_violated, (
+            f"{pair_id} violates a safety goal again; the third channel has "
+            f"regressed and the catalog says it should not"
+        )
 
 
 def test_at_least_one_control_pair_is_unchanged(results: dict) -> None:
     """The property that stops this reading as 'more faults are worse'.
 
     A latent fault is consequential only in combination with something that
-    needed the mechanism it removed. If every pair got worse, the campaign would
-    be measuring fault count rather than latency.
+    needed the mechanism it removed. If every pair changed its outcome, the
+    campaign would be measuring fault count rather than latency.
     """
     unchanged = [p.id for p in PAIRS if not results[p.id].caused_by_the_combination]
     assert unchanged, (
@@ -79,33 +86,32 @@ def test_at_least_one_control_pair_is_unchanged(results: dict) -> None:
     )
 
 
-def test_the_headline_pair_runs_away_undetected(results: dict) -> None:
-    """DP-01 is the argument for counting latent faults separately.
+def test_the_machinery_can_still_recognise_a_violation() -> None:
+    """Asserted by construction, because no real pair violates any more.
 
-    FLT-S01 alone is bounded at 207 C because the frame contradicts the lie.
-    With the frame channel already dead there is nothing to contradict it, and a
-    fault the design demonstrably handles becomes one it cannot see at all.
+    A campaign in which nothing fails is worth exactly as much as its ability to
+    notice failure, and that ability is now exercised nowhere else.
     """
-    result = results["DP-01"]
-    assert result.primary_alone.detected, "FLT-S01 alone should still be caught"
-    assert not result.combined.detected, "the combination is no longer undetected"
-    assert result.combined.true_temperature_c > result.primary_alone.true_temperature_c * 4, (
-        f"the combination reached {result.combined.true_temperature_c:.0f} C "
-        f"against {result.primary_alone.true_temperature_c:.0f} C alone; the gap "
-        f"is the finding and it has narrowed"
+    import dataclasses
+
+    from fih.campaign import run
+
+    violating = dataclasses.replace(
+        run(BY_ID["FLT-S05"]), reached_safe_state=False,
+        true_temperature_c=OVERHEAT_LIMIT_C * 3, detected_at_step=None,
+        rejected_command=False,
     )
-
-
-def test_a_pair_can_defeat_the_case_the_design_handles_best(results: dict) -> None:
-    """DP-02, the pointed one.
-
-    FLT-S08 is the entry that justifies the second temperature source: caught in
-    time, inside the limit. A latent fault removes exactly that.
-    """
-    result = results["DP-02"]
-    assert result.primary_alone.reached_safe_state
-    assert result.primary_alone.true_temperature_c < OVERHEAT_LIMIT_C
+    result = dataclasses.replace(run_pair(PAIRS[0], BY_ID), combined=violating)
     assert result.safety_goal_violated
+
+    # A pair recorded as handled that violates must fail...
+    ok, why = verdict(PAIRS[0], result)
+    assert not ok and "recorded as handled" in why
+
+    # ...and one recorded as violating that violates must pass, with the
+    # temperature in the message, so a reader can see how bad it got.
+    ok, why = verdict(dataclasses.replace(PAIRS[0], expectation="violated"), result)
+    assert ok and "safety goal violated" in why and "C undetected" in why
 
 
 # --- the pair loader, tested by breaking it ---------------------------------
@@ -203,24 +209,16 @@ def test_a_latent_member_that_is_not_silent_fails_the_verdict() -> None:
 def test_a_pair_that_stops_violating_fails_the_verdict() -> None:
     """Same rule as a residual fault: good news is a stale record until updated.
 
-    If a diagnostic is ever added that catches the latent fault, DP-01 stops
-    violating and this must fail, forcing the entry and the safety argument to be
-    rewritten rather than silently passing.
+    Not hypothetical. DP-01 and DP-02 were recorded as violating, a diverse
+    third channel was added, and this rule is exactly what failed the build and
+    forced both entries plus the safety argument to be rewritten instead of
+    quietly going green.
     """
     from fih.campaign import run
 
-    fixed = _result("DP-01", combined=run(BY_ID["FLT-A01"]))
-    ok, why = verdict(PAIRS[0], fixed)
+    ok, why = verdict(_pair(expectation="violated"),
+                      _result("DP-01", combined=run(BY_ID["FLT-A01"])))
     assert not ok and "stale" in why
-
-
-def test_a_control_pair_that_starts_violating_fails_the_verdict() -> None:
-    from fih.campaign import run
-
-    handled = _pair(expectation="handled")
-    broken = _result("DP-X", combined=run(BY_ID["FLT-S01"], latent=BY_ID["FLT-S07"]))
-    ok, why = verdict(handled, broken)
-    assert not ok and "recorded as handled" in why
 
 
 def test_the_dual_point_report_shows_both_members_and_the_combination() -> None:

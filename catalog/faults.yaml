@@ -144,37 +144,29 @@ faults:
     challenges: [SR-10]
     safe_state: STO
     ftti_steps: 7
-    expectation: late
-    late_rationale: >
-      MEASURED against DUT v2.0, whose thermal model was validated against the
-      data sheet: the cross check fires at step 12, five steps past the 7 step
-      budget, and by then the winding has reached 207 C against a 140 C limit.
-      The insulation is already damaged. Detection is not protection, and this
-      entry exists so the difference cannot be rounded away.
-      The cause is structural rather than a tuning error. The frame is a larger
-      thermal mass than the winding, so its temperature necessarily LAGS, and a
-      cross check cannot react faster than its slower channel responds. Under
-      locked rotor current the winding covers its whole permitted rise in 7
-      steps, which no second thermometer placed further from the heat can match.
-      What would close it is not a better sensor but a different KIND of second
-      channel: a model based estimator that integrates commanded current over
-      time and compares the predicted rise against the reported one. An
-      estimator has no thermal mass and so no lag, and it is what a real drive
-      uses for exactly this reason. That is a design change, not a threshold
-      change.
+    expectation: detected
     history: >
-      WAS RESIDUAL until DUT v1.5, and this entry is the reason the second
-      temperature source exists. Measured like for like, same physics and same
-      injection, with only the second channel suppressed: with ONE temperature
-      source the drive never trips at all and the winding runs away past 1100 C.
-      With TWO it trips at step 12 at 207 C. The second source turns an
-      unbounded excursion into a bounded one, which is a large improvement and
-      is still not protection, because 207 C is past the insulation limit. The
-      earlier figures recorded here (409.6 C and a step 2 trip inside the limit)
-      came from a thermal model that was later found to understate rated duty
-      heating by 8.3x and to scale loss with speed rather than current. The finding is kept here rather than
-      deleted: a catalog that erases the gap it closed loses the evidence that
-      closing it mattered. See FLT-S05 for what the redundancy still cannot do.
+      This entry has driven two design changes and is the spine of the project's
+      argument, so its history is kept rather than overwritten.
+      AGAINST A SINGLE TEMPERATURE SOURCE it was residual. The drive never
+      tripped at all and the winding ran past 1100 C, because the protection
+      trips on the reported value and the reported value was a lie. DUT v1.5
+      added a second temperature source in response.
+      AGAINST TWO SOURCES it was LATE. The frame cross check fired at step 12,
+      five steps past the 7 step budget, with the winding at 207 C, already past
+      its limit. The cause was structural rather than a tuning error: the frame
+      is a larger thermal mass, so it necessarily lags, and a cross check cannot
+      react faster than its slower channel responds. Under locked rotor current
+      the winding covers its entire permitted rise in 7 steps, which no
+      thermometer mounted further from the heat can match. Detection is not
+      protection.
+      AGAINST THREE CHANNELS it is detected in time. DUT v2.2 added a model
+      based estimator that integrates commanded loss instead of measuring
+      temperature, so it has no thermal mass and no lag. Caught at step 7 with
+      the winding at 139.6 C, inside both budget and limit. The fix was a
+      different KIND of channel, not a better threshold, and that is the lesson
+      worth carrying: the second thermometer was the obvious answer and the
+      wrong one.
 
   - id: FLT-S02
     title: Temperature sensor stuck at an alarming value
@@ -245,29 +237,31 @@ faults:
     title: Both temperature sensors stuck at a safe value (common cause)
     fault_class: sensor
     description: >
-      The fault the second temperature source cannot answer. Both channels
-      report ambient while the winding cooks, so the two limits never trip and
-      the cross check between them agrees perfectly, all the way to destruction.
+      One root cause takes both thermal sensors at once. The case redundancy
+      cannot answer, because two channels are two channels only for as long as
+      they fail independently.
     injection: {hook: both_temperatures_stuck, params: {at_c: 40.0}}
     precondition: stalled_rotor
     challenges: [SR-10]
-    safe_state: none
-    ftti_steps: null
-    expectation: residual
-    residual_rationale: >
-      MEASURED against DUT v1.5, with the redundancy in place: the winding
-      ran away past 1500 C while both sensors reported 40 C and the drive kept
-      running, which is exactly what the single channel design did. Redundancy defeats INDEPENDENT
-      failures and does nothing whatever about common cause, and two sensors are
-      two channels only for as long as they fail independently. A shared supply,
-      a shared ADC reference, a shared harness or a shared connector makes them
-      one channel wearing two names. This entry exists so that adding the second
-      source cannot be read as closing SR-10 in general: it closes the
-      independent case and names what is left. Closing this one is not a
-      software change. It needs the two channels to be diverse in a way this
-      model does not represent: different sensing principle, different supply,
-      different conversion path, and an FMEDA to show the common cause fraction
-      is acceptable.
+    safe_state: STO
+    ftti_steps: 7
+    expectation: detected
+    history: >
+      WAS RESIDUAL until DUT v2.2, and it is the clearest demonstration in this
+      catalog of the difference between redundant and diverse. With two
+      temperature sensors the winding ran past 1500 C undetected, exactly as the
+      single channel design did: a shared supply, ADC reference, harness or
+      connector makes two sensors one channel wearing two names, and both limits
+      plus the cross check between them agreed perfectly all the way to
+      destruction.
+      The entry's own rationale said closing it needed channels that were
+      DIVERSE rather than merely duplicated. The model based estimator is
+      exactly that, because it does not read a sensor at all, so whatever took
+      both sensors leaves it untouched. Caught at step 7, inside the limit.
+      What has NOT changed is the argument. A third channel of the same kind
+      would still have failed here. This closes because the third channel is a
+      different kind, and FLT-A03 is catalogued alongside it to show the price:
+      the estimator is blind to the plant in exactly the way the sensors are not.
 
   - id: FLT-S06
     title: Frame sensor reads high while the motor is healthy
@@ -371,6 +365,32 @@ faults:
       feedback compared against the commanded operating point.
 
   # --- timing ---------------------------------------------------------------
+  - id: FLT-A03
+    title: Cooling degraded, plant running hotter than commanded
+    fault_class: actuator
+    description: >
+      A blocked fan or a clogged filter. The drive commands exactly what it
+      always did and the machine runs hotter, so nothing about the COMMAND is
+      wrong and only a measurement can notice.
+    injection: {hook: degrade_cooling, params: {scale: 0.35}}
+    challenges: [SR-03]
+    safe_state: STO
+    ftti_steps: 154
+    expectation: detected
+    history: >
+      Added with the model based estimator in DUT v2.2, deliberately, to
+      demonstrate the OTHER half of the diversity argument. The estimator closes
+      every sensor fault in this catalog because it does not read a sensor. This
+      entry is what it cannot do: it knows only what was commanded and assumes
+      nominal cooling, so with real cooling at a third of nominal it predicts the
+      nominal and misses the fault entirely. The winding sensor catches it.
+      So neither kind of channel is sufficient and the pair is not redundancy, it
+      is coverage of two disjoint failure classes. An argument for diversity that
+      only demonstrates the flattering half is not an argument, which is why this
+      entry exists even though it passes.
+      The budget is derived like the others, being the steps the winding takes to
+      reach its limit under this condition.
+
   - id: FLT-T01
     title: Watchdog starved
     fault_class: timing

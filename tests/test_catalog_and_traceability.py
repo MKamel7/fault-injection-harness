@@ -157,8 +157,15 @@ def test_a_requirement_broken_only_by_lateness_says_only_that() -> None:
     completely different fixes: a new diagnostic versus a faster one.
     """
     faults = load_catalog()
-    late = next(f for f in faults if f.is_late)
-    only_late = dataclasses.replace(late, id="FLT-Z98", challenges=("SR-99",))
+    # No entry is currently late, the estimator closed the only one, so the case
+    # is made synthetically. The distinction has to keep working for the next
+    # one: "not satisfied" alone would leave a reader unable to tell a design
+    # that never notices a fault from one that notices it too late, and those
+    # call for completely different fixes.
+    template = next(f for f in faults if not f.is_residual)
+    only_late = dataclasses.replace(template, id="FLT-Z98", challenges=("SR-99",),
+                                    expectation="late", ftti_steps=1,
+                                    late_rationale="synthetic")
     reqs = (*load_requirements(), Requirement(id="SR-99", text="late only"))
 
     row = next(line for line in matrix_markdown((*faults, only_late), reqs).splitlines()

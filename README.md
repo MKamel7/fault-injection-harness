@@ -9,9 +9,9 @@ protection layer configured as **both AUTOSAR E2E and PROFIsafe**, and the two
 are compared on the same fault set.
 
 ```
-23 faults   17 detected in time   1 detected too late   5 residual
-144 tests   100% branch coverage   ruff + mypy strict   all gated in CI
-4 of 11 safety requirements currently NOT met, each named with why
+24 faults   20 detected in time   4 residual   4 latent-plus-primary pairs
+176 tests   100% branch coverage   ruff + mypy strict   all gated in CI
+3 of 11 safety requirements currently NOT met, each named with why
 ```
 
 ## What this is for
@@ -39,56 +39,44 @@ detection would not be credible.
 
 ## The headline finding
 
-**Detection is not protection**, and this project's central result is a case
-where the difference decides whether a motor survives.
+**A protection channel is only as good as the thing it measures, and the answer
+was never a second thermometer.** It was a channel of a different kind.
 
-A single temperature source cannot protect against its own sensor. Adding a
-second one bounds the damage and still does not prevent it, because the second
-channel is physically too slow.
+The same fault, a winding sensor stuck at a safe value with the rotor stalled,
+against four successive designs:
 
-| FLT-S01, winding sensor stuck at a safe value | Trip | Peak winding |
+| Design | Trip | Peak winding |
 |---|---|---|
-| One temperature source | **never** | **1167 C** and climbing |
-| Two, with a cross check | step 12 | **207 C** |
-| Budget | by step 7 | 140 C |
+| One temperature sensor | **never** | past 1100 C |
+| Two sensors, with a cross check | step 12 | 207 C, past the limit |
+| Two sensors, frame channel latently dead | **never** | **1617 C** |
+| Two sensors plus a diverse estimator | **step 7** | **139.6 C** |
 
-The budget is **derived, not chosen**: under locked rotor current the winding
-covers its entire permitted rise, 40 C to 140 C, in 7 steps. That is all the time
-any thermal protection has.
+The budget is 7 steps and 140 C, both **derived**: under locked rotor current the
+winding covers its entire permitted rise in 7 steps.
 
-The second source converts an unbounded excursion into a bounded one, which is a
-large improvement and is not protection. The cause is structural: the frame is a
-larger thermal mass, so it necessarily lags, and a cross check cannot react
-faster than its slower channel responds. Closing it needs a different **kind** of
-channel, a model based estimator that integrates commanded current and has no
-thermal mass and therefore no lag, which is exactly why real drives use one.
+Rows two and three are the argument. A second sensor bounded the damage without
+preventing it, because the frame is a larger thermal mass and therefore lags. And
+that bound held only while the second channel was alive, with nothing in the
+design noticing when it died.
 
-**Where the second source does work.** Two cases, and the second only became
-visible once the catalog stopped testing thermal faults exclusively at the
-extreme. A sensor drifting 60 C low is caught at step 1 by the disagreement
-alone, because neither temperature limit is ever reached. And under a **sustained
-overload rather than a locked rotor**, twice rated torque with the shaft still
-turning, the same lie as above is caught at step 27 with the winding at 117 C,
-inside both the 36 step budget and the 140 C limit.
+The third channel does not measure temperature at all. It integrates commanded
+loss and predicts what the winding must be doing, and that one difference closed
+three findings at once: the late detection, a **common cause** taking both
+sensors, and the latent dead channel. A third *thermometer* would have closed
+none of them.
 
-So the redundancy is **adequate for the likelier hazard and inadequate for the
-fastest one**, which is a far more useful statement than the one a stall-only
-catalog produced.
+**What it costs, which is the half usually left out.** The estimator knows only
+what was commanded, so it is blind to the plant. Degrade real cooling to a third
+of nominal and it predicts the nominal and misses the fault entirely; the winding
+sensor catches that one. Neither kind is sufficient. The pair is not redundancy,
+it is coverage of two disjoint failure classes, and that is what diversity means.
 
-**And the redundancy is itself a new failure source.** A frame sensor reading a
-plausible 120 C used to stop a healthy motor at step 1, reported as an
-overtemperature the motor was not having, and did the same at idle on a machine
-that had never moved. Two channels can detect a contradiction and cannot
-attribute it, so the diagnostic now says `SENSOR_DISAGREEMENT`, and a
-disagreement with no torque commanded annunciates instead of tripping. A frame
-sensor reading *low* remains undetectable and is catalogued as such: it is a
-latent fault, harmless alone, and it removes a backstop that only matters once
-the primary channel has failed too.
-
-**And it is deliberately not oversold.** FLT-S05 injects the same lie into *both*
-channels and is residual: the winding runs past 1500 C undetected, exactly as the
-single channel design did. Redundancy defeats independent failures and does
-nothing about common cause.
+**And something still gets through.** At 0.9 rated load with degraded cooling,
+the estimator never trips; add a lying winding sensor and a dead frame channel
+and the winding reaches **270.7 C undetected**. That is three faults, so the
+harness cannot express it as a catalogued pair, and it is written into the safety
+argument rather than left for someone to find.
 
 ## Three outcomes, not two
 

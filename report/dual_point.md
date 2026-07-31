@@ -8,12 +8,12 @@ A latent fault violates no safety goal by itself and is not detected, so nothing
 
 | Pair | Latent | Primary | Primary alone | Combined | Verdict |
 |---|---|---|---|---|---|
-| DP-01 | FLT-S07 | FLT-S01 | detected, 207 C | **undetected**, 1617 C | PASS: safety goal violated, winding reached 1617 C undetected |
-| DP-02 | FLT-S07 | FLT-S08 | detected, 117 C | **undetected**, 384 C | PASS: safety goal violated, winding reached 384 C undetected |
+| DP-01 | FLT-S07 | FLT-S01 | detected, 140 C | detected, 140 C | PASS: handled, as documented |
+| DP-02 | FLT-S07 | FLT-S08 | detected, 117 C | detected, 140 C | PASS: handled, as documented |
 | DP-03 | FLT-S07 | FLT-A01 | detected, 140 C | detected, 140 C | PASS: handled, as documented |
 | DP-04 | FLT-S07 | FLT-S03 | detected, 55 C | detected, 55 C | PASS: handled, as documented |
 
-**2 of 4 pairs violate a safety goal that neither member violates alone.**
+**0 of 4 pairs violate a safety goal that neither member violates alone.**
 
 ## Why the control cases are here
 
@@ -23,15 +23,15 @@ DP-03 and DP-04 pair the same latent fault with primaries the design handles any
 
 ### DP-01: Frame sensor already dead when the winding sensor starts lying
 
-- **Expectation:** violated
+- **Expectation:** handled
 - **Challenges:** SR-10, SR-11
-- The headline result of the pair campaign, and the strongest argument in this project for why latent faults are counted separately. Alone, FLT-S01 is caught at step 12 with the winding at 207 C: past its limit, but bounded, because the frame keeps heating while the winding sensor insists on ambient and that contradiction is visible. With the frame sensor already stuck, there is nothing left to contradict the lie, and the same fault runs to 1617 C entirely undetected. So the second temperature source turns an unbounded excursion into a bounded one exactly as long as it is working, and there is nothing in the design that notices when it stops. A safety mechanism nobody checks is a safety mechanism you do not have, which is what the ISO 26262 latent fault metric exists to measure. Closing this needs a diagnostic ON the safety mechanism itself, not a better safety mechanism: a periodic check that the frame channel still responds. A frame reading that never moves while the winding rises is stuck, and that is detectable without a third sensor.
+- WAS VIOLATED until DUT v2.2, and this pair is why the third channel is diverse rather than simply additional. With two temperature sensors: FLT-S01 alone was caught at step 12 and bounded at 207 C, because the frame kept heating while the winding sensor insisted on ambient and that contradiction was visible. With the frame sensor already dead there was nothing left to contradict the lie, and the same fault ran to 1617 C entirely undetected. The second temperature source bounded the damage exactly as long as it was working, and nothing in the design noticed when it stopped. A safety mechanism nobody checks is a safety mechanism you do not have. The model based estimator does not depend on either sensor, so a dead frame channel takes nothing away from it. Caught at step 7, inside the limit, with or without the latent fault present. The pair is retained rather than deleted because the finding it produced is what motivated the fix, and because it now serves as the regression test for it.
 
 ### DP-02: Frame sensor already dead when a lying sensor meets a sustained overload
 
-- **Expectation:** violated
+- **Expectation:** handled
 - **Challenges:** SR-10, SR-11
-- The uncomfortable one, because FLT-S08 is the case the redundancy HANDLES. Alone it is caught at step 27 with the winding at 117 C, inside both its budget and its limit, and it is the entry that justifies calling the second temperature source worth having. With the frame channel already dead the same fault reaches 383 C undetected. The protection that the design's best result depends on is exactly the protection that a latent fault removes, which is a more pointed way of saying what DP-01 says: the value of a safety mechanism is conditional on somebody checking it is alive.
+- WAS VIOLATED until DUT v2.2, and it was the uncomfortable one, because FLT-S08 is the case the redundancy HANDLES. Alone it is caught at step 27 with the winding at 117 C, inside both its budget and its limit, and it is the entry that justifies calling the second temperature source worth having. With the frame channel already dead the same fault reached 383 C undetected. The protection that the design's best result depended on was exactly the protection a latent fault removed, which was a more pointed way of saying what DP-01 said: the value of a safety mechanism is conditional on somebody checking it is alive. The estimator does not depend on either sensor, so this is now handled. The lesson survives the fix: it was true of the two channel design and it would be true again of any mechanism added without a way to tell whether it still works.
 
 ### DP-03: Frame sensor already dead when the rotor stalls, sensors otherwise honest
 

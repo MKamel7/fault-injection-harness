@@ -97,56 +97,59 @@ def test_at_least_one_fault_is_residual() -> None:
     )
 
 
-def test_a_single_lying_sensor_is_caught_but_not_in_time(results: dict) -> None:
-    """The finding, twice revised, and each revision was the tests working.
+def test_a_single_lying_sensor_is_now_caught_in_time(results: dict) -> None:
+    """Third revision of this test, and each revision was the design improving.
 
-    Version one asserted the winding cooked undetected. That failed when the
-    device gained a second temperature source, which is what forced the second
-    source to exist.
+    v1: asserted the winding cooked undetected. Failed when a second temperature
+    source was added, which is what forced that source to exist.
+    v2: asserted the trip landed inside the insulation limit. Failed when the
+    thermal model was validated against its data sheet and the real physics
+    turned out to be much faster.
+    v3: asserted the trip was LATE, at step 12 and 207 C, because the frame is a
+    larger thermal mass and cannot follow. Failed when a diverse model based
+    channel was added, which has no thermal mass and no lag.
 
-    Version two asserted the trip happened inside the insulation limit. That
-    failed when the device's thermal model was validated against its data sheet
-    and found to understate rated duty heating by 8.3x while scaling loss with
-    speed instead of current. With physically correct heating the winding covers
-    its whole permitted rise in 7 steps, and the frame, being the larger thermal
-    mass, cannot follow fast enough.
-
-    So the honest claim is narrower than it was: the second source turns an
-    unbounded excursion into a bounded one, and does not keep the winding safe.
-    Detection is not protection.
+    Each failure was the test doing its job. A safety case that silently absorbs
+    good news would also silently absorb bad news.
     """
     result = results["FLT-S01"]
-    assert result.detected and result.reached_safe_state
-
     fault = next(f for f in CATALOG if f.id == "FLT-S01")
     assert fault.ftti_steps is not None
+    assert result.detected and result.reached_safe_state
     assert result.detected_at_step is not None
-    assert result.detected_at_step > fault.ftti_steps, (
-        "FLT-S01 now detects inside its budget; if that is real the catalog "
-        "entry and the safety argument both need rewriting"
+    assert result.detected_at_step <= fault.ftti_steps, (
+        f"caught at step {result.detected_at_step}, outside the "
+        f"{fault.ftti_steps} step budget"
     )
-    assert result.true_temperature_c > OVERHEAT_LIMIT_C, (
-        "the winding no longer exceeds its limit before the trip, which would "
-        "mean the lag argument in the catalog is stale"
-    )
-    assert result.true_temperature_c < 400, (
-        f"the excursion reached {result.true_temperature_c:.0f} C; the whole "
-        f"value of the second channel is that it bounds the excursion at all"
+    assert result.true_temperature_c <= OVERHEAT_LIMIT_C, (
+        f"caught in time but at {result.true_temperature_c:.0f} C, past the limit"
     )
 
 
-def test_redundancy_does_not_survive_common_cause(results: dict) -> None:
-    """The honest counterweight to the entry above.
+def test_diversity_survives_the_common_cause_that_redundancy_could_not(
+    results: dict,
+) -> None:
+    """FLT-S05 was residual for as long as both channels were the same kind.
 
-    Adding a second sensor closes the INDEPENDENT failure and does nothing at all
-    about common cause. If this ever starts passing as detected, either the DUT
-    gained genuinely diverse channels or the injection stopped being common
-    cause, and both need the safety argument rewritten.
+    Two sensors are two channels only while they fail independently. A model
+    based channel reads no sensor, so whatever took both of them leaves it
+    untouched. This is the clearest demonstration in the catalog of diverse
+    versus merely duplicated, and it is pinned so a regression that removes the
+    estimator fails here rather than quietly restoring an undetected runaway.
     """
     result = results["FLT-S05"]
-    assert not result.detected, "common cause is now detected; check what changed"
-    assert result.overheated_undetected
-    assert result.true_temperature_c > OVERHEAT_LIMIT_C * 2, (
-        f"the winding only reached {result.true_temperature_c:.0f} C, so the "
-        f"common cause case is no longer demonstrating an uncontrolled overheat"
-    )
+    assert result.detected, "common cause is undetected again"
+    assert result.true_temperature_c <= OVERHEAT_LIMIT_C
+
+
+def test_the_estimator_cannot_see_the_plant(results: dict) -> None:
+    """The other half of the diversity argument, and the half usually omitted.
+
+    FLT-A03 degrades real cooling. The command is unchanged, so the estimator
+    predicts the nominal and misses it entirely; only a measurement notices.
+    Neither kind of channel is sufficient, which is what makes this diversity
+    rather than redundancy.
+    """
+    result = results["FLT-A03"]
+    assert result.detected and result.reached_safe_state
+    assert result.notes == "" or "sensor" not in result.notes

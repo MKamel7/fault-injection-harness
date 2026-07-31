@@ -240,7 +240,12 @@ def run(fault: Fault, steps: int = RUN_STEPS,
     overheated_undetected = (
         dut.true_temperature_c >= OVERHEAT_LIMIT_C and dut.state != "FAULT"
     )
-    if overheated_undetected:
+    if overheated_undetected:    # pragma: no cover
+        # Unreachable since the diverse third channel landed: no catalogued
+        # fault now cooks the winding undetected. Kept live rather than deleted,
+        # because it is the check that would notice if one ever did again, and
+        # excluded from coverage rather than forced by a synthetic run, which
+        # would assert something about a stub instead of about the design.
         notes = (f"winding reached {dut.true_temperature_c:.0f} C while the sensor "
                  f"reported {dut.read_winding_c():.0f} C and the drive kept running")
 

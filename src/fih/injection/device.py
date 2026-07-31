@@ -154,6 +154,17 @@ def torque_loss(dut: ActuatorFaultedController) -> None:
     dut.torque_lost = True
 
 
+def degrade_cooling(dut: SensorFaultedController, scale: float) -> None:
+    """The plant itself gets worse: a blocked fan, a clogged filter.
+
+    The one thing the model based channel cannot see, because it knows only what
+    was commanded and assumes nominal cooling. Injected here so the diversity
+    argument is demonstrated in BOTH directions rather than only the flattering
+    one.
+    """
+    dut.cooling_scale = float(scale)
+
+
 #: Hook name from the catalog -> the function that arms it. Typed loosely on
 #: purpose: the params come from YAML, so the arity varies per hook and the
 #: catalog loader is what validates them.
@@ -165,4 +176,5 @@ DEVICE_HOOKS: dict[str, Callable[..., None]] = {
     "speed_feedback_stuck": speed_feedback_stuck,
     "stall_rotor": stall_rotor,
     "torque_loss": torque_loss,
+    "degrade_cooling": degrade_cooling,
 }

@@ -59,12 +59,12 @@ def test_undetected_fault_fails_its_verdict() -> None:
 
 def test_residual_fault_that_gets_detected_is_a_failure() -> None:
     """Good news is still a report defect until the rationale is updated."""
-    ok, why = verdict(BY_ID["FLT-S05"], _result(reached_safe_state=True))
+    ok, why = verdict(BY_ID["FLT-S07"], _result(reached_safe_state=True))
     assert not ok and "stale" in why
 
 
 def test_residual_fault_passes_by_staying_undetected() -> None:
-    ok, _ = verdict(BY_ID["FLT-S05"], _result(reached_safe_state=False, detected_at_step=None))
+    ok, _ = verdict(BY_ID["FLT-S07"], _result(reached_safe_state=False, detected_at_step=None))
     assert ok
 
 
@@ -103,14 +103,14 @@ def test_report_names_every_residual_fault_with_its_rationale() -> None:
 def test_the_report_names_the_requirements_the_design_does_not_meet() -> None:
     """Three of ten, and each for a different reason.
 
-    SR-06 and SR-09 have undetectable challenges. SR-10 has one detected too
-    late, which is the case the third outcome exists to make visible: it would
-    have read as satisfied under a rule that only asked whether some fault
-    passed.
+    SR-06, SR-09 and SR-11 each have at least one challenge the design cannot
+    detect. SR-10 is no longer here: it was unmet for two different reasons in
+    turn, a detection that arrived too late and a common cause both channels
+    shared, and a diverse third channel closed both.
     """
     text, _ = build(CATALOG, run_all(CATALOG), REQUIREMENTS)
     section = text.split("## Requirements not satisfied by this design")[1]
-    for req in ("SR-06", "SR-09", "SR-10"):
+    for req in ("SR-06", "SR-09", "SR-11"):
         assert req in section, f"{req} should be listed as unmet"
     assert "SR-01" not in section and "SR-05" not in section
 
@@ -125,7 +125,7 @@ def test_one_unhandled_challenge_is_enough_to_leave_a_requirement_unmet() -> Non
     from fih.traceability import Requirement
 
     passing = dataclasses.replace(BY_ID["FLT-S02"], id="FLT-Y01", challenges=("SR-99",))
-    failing = dataclasses.replace(BY_ID["FLT-S05"], id="FLT-Y02", challenges=("SR-99",))
+    failing = dataclasses.replace(BY_ID["FLT-S07"], id="FLT-Y02", challenges=("SR-99",))
     req = Requirement(id="SR-99", text="a requirement with one way to break it")
 
     results = run_all((passing, failing))
@@ -171,6 +171,13 @@ def test_protection_section_covers_every_communication_fault_and_only_those() ->
 
 
 # --- the third outcome: detected, but too late -------------------------------
+# No catalogued fault is currently late, the estimator closed the only one, so
+# these work on a synthetic entry. The outcome has to keep working for the next
+# design that needs it.
+LATE = dataclasses.replace(BY_ID["FLT-S01"], expectation="late",
+                           late_rationale="synthetic")
+
+
 def test_a_late_fault_that_comes_in_on_time_fails_its_verdict() -> None:
     """Same rule as residual: the report must be wrong in neither direction.
 
@@ -178,34 +185,31 @@ def test_a_late_fault_that_comes_in_on_time_fails_its_verdict() -> None:
     improved and the rationale is stale, and that has to fail rather than pass
     quietly.
     """
-    fault = BY_ID["FLT-S01"]
-    assert fault.ftti_steps is not None
-    ok, why = verdict(fault, _result(detected_at_step=fault.ftti_steps))
+    assert LATE.ftti_steps is not None
+    ok, why = verdict(LATE, _result(detected_at_step=LATE.ftti_steps))
     assert not ok and "stale" in why
 
 
 def test_a_late_fault_passes_by_being_late() -> None:
-    fault = BY_ID["FLT-S01"]
-    assert fault.ftti_steps is not None
-    ok, why = verdict(fault, _result(detected_at_step=fault.ftti_steps + 5))
+    assert LATE.ftti_steps is not None
+    ok, why = verdict(LATE, _result(detected_at_step=LATE.ftti_steps + 5))
     assert ok and "OUTSIDE" in why
 
 
 def test_a_requirement_met_only_by_a_late_fault_is_not_satisfied() -> None:
-    """SR-10 is the live example, and it is why the third outcome exists.
+    """SR-10 was the live example until the estimator closed it.
 
     Counting a late detection as coverage is how a matrix ends up green over a
-    drive that burns out before it reacts.
+    drive that burns out before it reacts, so the rule is asserted against a
+    synthetic entry now that no real one is late.
     """
-    from fih.traceability import matrix_markdown
+    from fih.traceability import Requirement, matrix_markdown
 
-    text = matrix_markdown(CATALOG, REQUIREMENTS)
-    row = next(line for line in text.splitlines() if line.startswith("| SR-10 "))
-    assert "NOT satisfied" in row and "detected outside budget: FLT-S01" in row
-
-    report, _ = build(CATALOG, run_all(CATALOG), REQUIREMENTS)
-    section = report.split("## Requirements not satisfied by this design")[1]
-    assert "SR-10" in section
+    late = dataclasses.replace(LATE, id="FLT-Z97", challenges=("SR-99",))
+    reqs = (Requirement(id="SR-99", text="met only by a late detection"),)
+    row = next(line for line in matrix_markdown((late,), reqs).splitlines()
+               if line.startswith("| SR-99 "))
+    assert "NOT satisfied" in row and "detected outside budget: FLT-Z97" in row
 
 
 def test_a_fully_satisfied_requirement_set_says_so() -> None:
