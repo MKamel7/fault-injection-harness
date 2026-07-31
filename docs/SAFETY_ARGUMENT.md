@@ -31,7 +31,7 @@ Specifically **not** claimed:
 | That the DUT is production code | It is a simulation, deliberately, so that faults can be injected at points a real drive would not expose. |
 
 What the report **does** compute is **detection coverage over the injected fault
-set**: of the 23 faults in this catalog, how many the design detects, how many
+set**: of the 24 faults in this catalog, how many the design detects, how many
 it detects in time, and after how many steps. That is a statement about this catalog and nothing wider. The two
 get conflated constantly and the distinction is the first thing an assessor
 checks.
@@ -52,13 +52,13 @@ falsified by running the campaign would not be worth making.
 
 | Evidence | Where | What it supports |
 |---|---|---|
-| Hazard analysis: 6 hazards, 6 safety goals, 10 safety requirements, each with an FTTI budget | `docs/HAZARD_ANALYSIS.md` | The faults are derived, not invented |
-| Fault catalog: 23 entries across sensor, actuator, communication and timing, with three outcomes: detected, detected late, residual | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
+| Hazard analysis: 8 hazards, 7 safety goals, 11 safety requirements, each with an FTTI budget | `docs/HAZARD_ANALYSIS.md` | The faults are derived, not invented |
+| Fault catalog: 24 entries across sensor, actuator, communication and timing, with three outcomes: detected, detected late, residual | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
 | Campaign: one fault per run, fresh device, fixed step budget, no randomness | `src/fih/campaign.py` | Reproducibility. The same fault gives the same result, asserted by test |
 | Latent plus primary pair campaign, with both members also run alone | `catalog/dual_point.yaml`, `report/dual_point.md` | A latent fault is defined by the difference, so the difference is what is reported |
 | Bidirectional traceability, build fails on a gap in either direction | `src/fih/traceability.py`, `report/traceability.md` | Every requirement is verified and every fault answers a requirement |
 | Coverage report with latency against each FTTI | `report/coverage.md` | Detection *in time*, not just detection |
-| 144 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
+| 182 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
 
 ### Why the traceability gate runs in both directions
 
@@ -77,110 +77,119 @@ that has never been seen to fail is an assumption, not a control.
 
 ## 4. The headline finding
 
-**A protection channel can only be as good as the thing it measures, and the
-answer to that was never a second thermometer. It was a channel of a different
-kind.**
+**The obvious fix for a sensor you cannot trust is a second sensor. It was the
+wrong fix, and this campaign proved it three separate ways before a channel of a
+different KIND closed all three.**
 
-This finding has been revised three times. Every revision came from a test
-failing, and every one of those tests was written to fail exactly that way.
+### The budgets are derived, and they differ by condition
 
-### The FTTI is derived, not chosen
+A thermal fault tolerant time interval is the interval from the hazardous
+condition arising to the hazard occurring, and for a thermal hazard that depends
+entirely on how hard the machine is being driven. Measured, with protection
+suppressed so the run is not cut short by the thing being budgeted:
 
-Under locked rotor current the winding covers its entire permitted rise, 40 C to
-140 C, in **7 steps**. That is how long any thermal protection has. Earlier
-versions budgeted 20 steps because somebody picked 20, and budgets nobody can
-defend are the quiet failure mode of a safety argument, because everything
-downstream measures against them.
+| Condition | Current | Steps to the insulation limit |
+|---|---|---|
+| Locked rotor | 4.29x rated | **22** |
+| Sustained overload, still turning | 2x rated | **136** |
+| Cooling degraded to a third of nominal | rated | **1041** |
 
-Budgets differ by condition and each is measured: **7 steps** under locked rotor,
-**36 steps** under a sustained twice rated overload, **154 steps** under degraded
-cooling at rated load.
+Earlier versions quoted one number, 20 steps, because somebody picked it, and
+later quoted the locked rotor figure as though it applied to all three. Budgets
+nobody can defend are the quiet failure mode of a safety argument, because
+everything downstream is measured against them, and a fault judged on a budget
+looser than its requirement is the easiest way there is to inflate a coverage
+report. The traceability gate now refuses that.
 
 ### The same fault, against four successive designs
 
-FLT-S01 holds the winding sensor at a safe 40 C with the rotor stalled.
+FLT-S01 holds the winding sensor at a safe value with the rotor stalled.
 
 | Design | Trip | Peak winding |
 |---|---|---|
-| One temperature sensor | **never** | **past 1100 C** |
-| Two sensors, with a cross check | step 12 | 207 C, past the limit |
-| Two sensors, frame channel latently dead | **never** | **1617 C** |
-| Two sensors plus a diverse estimator | **step 7** | **139.6 C** |
+| One temperature sensor | **never** | ran away |
+| Two sensors, with a cross check | late | past the limit |
+| Two sensors, frame channel latently dead | **never** | ran away |
+| Two sensors plus an accumulated overload channel | **step 2** | **51.6 C** |
 
-Rows two and three are the argument. A second sensor bounded the damage without
+The middle two rows are the argument. A second sensor bounded the damage without
 preventing it, because the frame is a larger thermal mass and therefore lags, and
-a cross check cannot react faster than its slower channel. Then row three: that
-bound held only for as long as the second channel was alive, and nothing in the
-design noticed when it stopped.
+a cross check cannot react faster than its slower channel. And that bound held
+only while the second channel was alive, with nothing in the design noticing when
+it died.
 
-### Why the third channel is diverse and not just additional
+### Why a channel of a different kind, and not a third sensor
 
-The estimator does not measure temperature. It integrates the loss the drive is
-commanding and predicts what the winding must be doing, and that single
-difference is what closed three separate findings at once:
+The third channel does not measure temperature. It integrates current above
+rated. That single difference closed all three findings at once, because anything
+that defeats measurement defeats every channel that measures: a shared supply,
+a shared reference, or simply both sensors being dead.
 
-| Fault | Before | With the estimator |
+| Fault | Two sensors | With the overload channel |
 |---|---|---|
-| FLT-S01, winding sensor lying | late, 207 C | step 7, 139.6 C |
-| FLT-S05, **both** sensors lying (common cause) | never detected | step 7 |
-| DP-01, lying sensor plus latently dead frame | never detected, 1617 C | step 7 |
+| FLT-S01, winding sensor lying | late, past the limit | step 2, 51.6 C |
+| FLT-S05, **both** sensors lying (common cause) | never detected | step 2, 51.6 C |
+| DP-01, lying sensor plus latently dead frame | never detected | step 2, 51.6 C |
 
-A third *thermometer* would have closed none of them. Anything that defeats
-measurement defeats every channel that measures, which is what "common cause"
-means and why two of the same kind is not really two.
+A locked rotor is now treated as what it actually is, an **overcurrent** event:
+the drive stops it with the winding still near ambient rather than waiting for a
+thermal channel to notice something.
+
+### It replaced a predicted-temperature channel, and why that failed is the sharpest result here
+
+The first attempt at a diverse channel predicted absolute winding temperature
+from commanded loss. It looked right and passed every test, and it was only
+passing because its model shared the plant's own coefficients. Sweeping
+deliberate parameter error through it showed the protection was knife edge, and
+solving the two bounding constraints gave the reason.
+
+Under-predict and the winding passes the limit before the estimate reaches the
+threshold. Over-predict and the estimate reaches the threshold during ordinary
+rated duty, tripping a healthy machine. A class 155 machine at a 100 K rated rise
+**normally runs at 87 percent of its absolute insulation limit**, and once single
+step sampling granularity is paid for out of what remains, the tolerable
+prediction error came out at **0.00 percent**. It had to be exactly right, which
+no real estimator is.
+
+An accumulator has the headroom a temperature prediction cannot, because during
+rated duty it sits at **zero** rather than at 87 percent of anything. Measured
+against the same faults it tolerates about **+7 percent** over-reading before
+nuisance tripping and **46 to 75 percent** of under-reading before it stops
+protecting. Real drives measure phase current to a few percent, which is exactly
+why real drives protect this way.
 
 ### What it costs, which is the half usually left out
 
-The estimator knows only what was **commanded**, so it cannot see the plant.
-FLT-A03 degrades real cooling to a third of nominal: the machine runs hot, the
-command is unchanged, and the estimator predicts the nominal and **misses it
-entirely**. The winding sensor catches it at step 154.
+The overload channel knows only what was **commanded**, so it cannot see the
+plant. FLT-A03 degrades real cooling to a third of nominal: the machine runs hot,
+the command is unchanged, and the accumulator sits at exactly zero. Only a
+measurement notices, and the frame sensor does, after 1041 steps.
 
 So neither kind of channel is sufficient. The pair is not redundancy, it is
-coverage of two disjoint failure classes, and that is what diversity actually
-means. An argument for diversity that demonstrates only the flattering half is
-not an argument, which is why FLT-A03 is catalogued even though it passes.
+coverage of two disjoint failure classes, and that is what diversity means. An
+argument for diversity that demonstrates only the flattering half is not an
+argument, which is why FLT-A03 is catalogued even though it passes.
 
-### What still defeats the design, found while checking that something did
+### What still gets through
 
-A campaign in which nothing fails is a campaign that has stopped asking. After
-the estimator closed every catalogued pair, the obvious question was whether
-anything still gets through, and something does:
-
-> At 0.9 of rated load with cooling degraded to 0.35, the estimator's nominal
-> prediction peaks at 120 C and never trips. With the winding sensor **also**
-> lying and the frame channel **also** dead, the winding reached **270.7 C
-> entirely undetected.**
-
-That is **three** faults, not two, so this harness cannot express it as a
-catalogued pair and it is recorded here rather than in the campaign. The shape is
-worth stating: it is the estimator's blind spot, the plant, combined with the
-sensors' blind spot, themselves. Diversity means the two classes are disjoint. It
-does not mean their union is everything.
-
-Closing it needs either a fourth channel or, more realistically, a plausibility
-check between the estimate and the measurement that flags a persistent
-divergence as a fault in its own right rather than waiting for either to cross a
-limit.
+Diversity means two failure classes are disjoint. It does not mean their union is
+everything. Combining the overload channel's blind spot with the sensors' own,
+a cooling degradation mild enough not to trip on its own, plus a lying winding
+sensor, plus a dead frame channel, still drives the winding well past its limit
+undetected. That is **three** faults, so this harness cannot express it as a
+catalogued pair, and it is recorded here rather than left to be discovered.
 
 ### Three outcomes, and a universal reading of satisfaction
 
 The catalog distinguishes **detected**, **detected but outside budget**, and
 **residual**, because a design can detect a fault and still fail to protect
-against it. Requirement satisfaction is treated as a **universal** claim: a
-requirement is satisfied only when *every* fault challenging it is detected
-inside its budget. The weaker existential rule was in place first and scored
-SR-10 as satisfied while a sensor stuck at ambient let the winding reach 207 C.
+against it. Requirement satisfaction is a **universal** claim: satisfied only
+when *every* fault challenging it is detected inside its budget. The weaker
+existential rule was in place first and scored SR-10 as satisfied while a sensor
+stuck at ambient let the winding run past its limit.
 
-Three of eleven requirements remain unmet:
-
-| | Why |
-|---|---|
-| SR-06 | FLT-C08 undetected: the protocol carries no request identifier |
-| SR-09 | FLT-S04 and FLT-A02 undetected: single source blind spots |
-| SR-11 | FLT-S07 undetected: a frame sensor reading low contradicts nothing |
-
-SR-10, which drove all of the above, is now met.
+Three of eleven requirements remain unmet, each naming its own counterexamples in
+`report/traceability.md`.
 
 ## 5. Verification, validation, and independence
 
@@ -197,7 +206,7 @@ validated**, and no amount of additional testing changes the second half.
 
 | Property | How it is established |
 |---|---|
-| The harness does what it claims | 128 tests, 100% statement and branch coverage, gated in CI |
+| The harness does what it claims | 182 tests, 100% statement and branch coverage, gated in CI |
 | Every requirement has evidence, every fault answers a requirement | Bidirectional gate that fails the build on a gap in either direction, and is itself tested by being deliberately broken |
 | Results are reproducible | No randomness in the campaign, asserted by test: same fault, identical result |
 | The published evidence matches the code | CI rebuilds the report and fails if the committed artifacts have gone stale |
@@ -252,9 +261,9 @@ observing the actual one:
   drive is genuinely healthy and only the supervisor's view breaks.
 - FLT-S01 and FLT-S03 moved from residual to detected after the device gained a
   second temperature source.
-- The headline excursion figure was corrected twice: 422 C to 409.6 C after the
-  injection model was found to understate cooling, and again to 1167 C after the
-  device's thermal model was validated against its data sheet.
+- The headline excursion figure was corrected three times, as the injection
+  model and then the thermal model were each found wrong. Current figures come
+  from `report/`, never from this page.
 - SR-10 moved from satisfied back to **not satisfied** once requirement
   satisfaction was treated as a universal claim rather than an existential one.
 - The thermal FTTI budgets moved from a chosen 20 steps to a derived 7.
@@ -274,13 +283,13 @@ Traceability proves that every requirement has a test and every fault answers a
 requirement. It proves nothing about whether the **requirement set itself is
 complete**, and that is the gap it is most often mistaken for closing.
 
-There are six hazards. They were not derived by a documented systematic method:
+There are eight hazards. They were not derived by a documented systematic method:
 no HAZOP guide word sweep, no FMEA worksheet, no fault tree, no STPA control
 structure, and no review. Asked "how do you know you have not missed a hazard",
 the honest answer is that we do not.
 
 The same applies to the fault set. Twenty faults were chosen because they were
-considered interesting, not sampled from a defined fault space, so **the 16 of 20
+considered interesting, not sampled from a defined fault space, so **the 20 of 24
 figure describes this catalog and estimates nothing**. There is no confidence
 interval on it and none could be computed without a sampling argument.
 
@@ -356,8 +365,15 @@ second temperature source is credited with above:
 
 | | Alone | With the frame channel already dead |
 |---|---|---|
-| FLT-S01, sensor stuck | detected, bounded at 207 C | **undetected, 1617 C** |
-| FLT-S08, sensor stuck under overload | detected in time, 117 C | **undetected, 383 C** |
+| FLT-S01, sensor stuck | detected, bounded | **undetected, ran away** |
+| FLT-S08, sensor stuck under overload | detected in time | **undetected, ran away** |
+
+**Both rows are HISTORICAL**, measured against the two sensor design. They are
+kept because the finding is what motivated the third channel, and deleting the
+case would delete the evidence that the fix mattered. Against the current design
+all four pairs are handled, with identical results whether or not the latent
+fault is present, because the overload channel reads no sensor. `report/dual_point.md`
+is the current record.
 
 FLT-S08 is the entry that justifies having the second source at all: caught in
 time, inside the limit. A latent fault removes exactly that. So the second
@@ -398,7 +414,7 @@ In the order a real project would do them:
    because it is the only item here that addresses a structural weakness rather
    than a scope one, it is the cheapest thing on the list, and until it happens
    every other entry is an improvement to evidence nobody has checked.
-1. ~~A second temperature source in the DUT~~ **done in DUT v1.5.** SR-10 moved
+1. ~~A second temperature source in the DUT~~ **done, and later superseded by a diverse third channel in DUT v3.0.** SR-10 moved
    from unsatisfied to satisfied for independent sensor failures, and FLT-S05
    was added to name the common cause case that remains. It was, as predicted,
    the smallest change with the largest effect on the argument.
@@ -408,8 +424,9 @@ In the order a real project would do them:
    the first item on this list that cannot be done in software.
 3. ~~Multi point fault injection, starting with a latent diagnostic failure plus
    a primary fault~~ **done.** It found that a dead frame channel turns FLT-S01
-   from a bounded 207 C excursion into an undetected 1617 C runaway, and defeats
-   FLT-S08, the very case the redundancy was credited with handling.
+   from a bounded excursion into an undetected runaway, and defeated FLT-S08, the
+   very case the redundancy was credited with handling. Both are now handled by
+   the diverse third channel.
 4. **A diagnostic on the safety mechanism itself**, which is what that finding
    asks for. Not a better mechanism: a periodic check that the frame channel
    still responds, since a frame reading that never moves while the winding

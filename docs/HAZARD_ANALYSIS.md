@@ -11,7 +11,7 @@ The item is an embedded motor controller driving a permanent-magnet synchronous
 servomotor, commanded over a line-based serial protocol, with thermal
 protection, stall handling and a software watchdog.
 
-The device under test is `embedded-test-automation` v1.3, imported as a pinned
+The device under test is `embedded-test-automation` v3.0, imported as a pinned
 dependency. Its operating envelope and protection thresholds are grounded in the
 data sheet for a **Siemens SIMOTICS S-1FK2**, article `1FK2105-6AF10-0SA0`, on a
 SINAMICS S210 drive:
@@ -185,6 +185,8 @@ Recorded per release from here on, however short.
 | v1.5 | **Second temperature channel added**, with a frame node, a frame limit and a cross check | **Not assessed at the time, and it should have been.** Adds a component with its own failure modes, one of which stops a healthy machine. Now covered by HAZ-07, HAZ-08, SG-07 and SR-11, and by faults FLT-S06 and FLT-S07. |
 | v2.0 | Thermal model validated against the data sheet: loss follows current rather than speed, rated duty calibrated to the permitted temperature | No new hazard, but every thermal FTTI changed. SR-03, SR-04 and SR-10 moved from a chosen 20 steps to a **derived 7**, being the time the winding takes to cover its whole permitted rise under locked rotor current. |
 | v2.1 | Contradiction between channels reported as SENSOR_DISAGREEMENT rather than as an overtemperature; no trip without commanded torque; annunciation added | Closes SR-11. Also demotes the frame limit from "independent path" to "slow backstop", since it is suppressed whenever the channels disagree. |
+| v2.2 | **Third channel added**, a model based estimator predicting absolute winding temperature | Closed SR-10 for the independent and common cause sensor faults. Not assessed at the time: the channel's own accuracy requirement, which turned out to be the thing that mattered. |
+| v3.0 | **Thermal model rebuilt** after independent review: real margin between rated duty and the trip, series thermal network, current driven heating, RESET no longer erases thermal state; **third channel replaced** by an accumulated overload on measured current | Every thermal FTTI changed and is now stated per condition. No new hazard, but the v2.2 estimator was withdrawn: solving its bounding constraints gave a tolerable prediction error of 0.00 percent, so it required exact knowledge. The replacement tolerates roughly +7 percent over-reading and 46 to 75 percent under-reading. |
 
 ### Why four thermal requirements say "per condition" rather than a number
 

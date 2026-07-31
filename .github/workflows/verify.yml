@@ -50,6 +50,12 @@ jobs:
       # see them without running anything. This catches the case where someone
       # edits the catalog and the checked in report goes stale: the diff is the
       # failure message.
+      # docs/ and README.md used to drift freely because CI diffed report/ only.
+      # They said 23 faults against 24, six hazards against eight, and a DUT
+      # three major versions behind the pin.
+      - name: Fail if the documents contradict the code
+        run: uv run --group dev python scripts/check_docs.py
+
       - name: Fail if the committed artifacts are stale
         run: |
           if ! git diff --quiet -- report/; then

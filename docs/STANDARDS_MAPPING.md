@@ -168,7 +168,7 @@ not a property a repository can have.
 | **SWE.4** Unit Verification | Unit verification strategy, criteria, results, and bidirectional traceability to detailed design | `docs/TEST_STRATEGY.md` in P1; `src/fih/traceability.py`; 100% branch coverage gated in CI |
 | **SWE.6** Software Qualification Test | Qualification test against software requirements, with results and bidirectional traceability | `catalog/faults.yaml` as the test specification, `report/coverage.md` as the results |
 | **SUP.9** Problem Resolution | Problems recorded, analysed, and their resolution tracked | Residual faults are recorded *as findings with rationale* rather than closed |
-| **SUP.10** Change Request Management | Changes to a verified baseline are controlled | The DUT is pinned to tag v1.4, never to a branch |
+| **SUP.10** Change Request Management | Changes to a verified baseline are controlled | The DUT is pinned to tag v3.0, never to a branch |
 
 The item that carries the most weight is **bidirectional** traceability. ASPICE
 asks for it in both directions deliberately, and this harness enforces both and

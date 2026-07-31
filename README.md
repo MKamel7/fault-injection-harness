@@ -39,44 +39,55 @@ detection would not be credible.
 
 ## The headline finding
 
-**A protection channel is only as good as the thing it measures, and the answer
-was never a second thermometer.** It was a channel of a different kind.
+**The obvious fix for a sensor you cannot trust is a second sensor. It was the
+wrong fix**, and the campaign proved it three separate ways before a channel of a
+different *kind* closed all three.
 
 The same fault, a winding sensor stuck at a safe value with the rotor stalled,
 against four successive designs:
 
 | Design | Trip | Peak winding |
 |---|---|---|
-| One temperature sensor | **never** | past 1100 C |
-| Two sensors, with a cross check | step 12 | 207 C, past the limit |
-| Two sensors, frame channel latently dead | **never** | **1617 C** |
-| Two sensors plus a diverse estimator | **step 7** | **139.6 C** |
+| One temperature sensor | **never** | ran away |
+| Two sensors, with a cross check | late | past the limit |
+| Two sensors, frame channel latently dead | **never** | ran away |
+| Two sensors plus an accumulated overload channel | **step 2** | **51.6 C** |
 
-The budget is 7 steps and 140 C, both **derived**: under locked rotor current the
-winding covers its entire permitted rise in 7 steps.
+Budgets are **derived and differ by condition**: 22 steps for a locked rotor,
+136 for a sustained 2x overload, 1041 for cooling degraded to a third of nominal.
+A fault judged on a budget looser than its requirement is the easiest way to
+inflate a coverage report, and the traceability gate refuses it.
 
-Rows two and three are the argument. A second sensor bounded the damage without
-preventing it, because the frame is a larger thermal mass and therefore lags. And
-that bound held only while the second channel was alive, with nothing in the
-design noticing when it died.
+**Why a different kind, and not a third sensor.** The third channel does not
+measure temperature; it integrates current above rated. Anything that defeats
+measurement defeats every channel that measures, so a third thermometer would
+have closed none of these:
 
-The third channel does not measure temperature at all. It integrates commanded
-loss and predicts what the winding must be doing, and that one difference closed
-three findings at once: the late detection, a **common cause** taking both
-sensors, and the latent dead channel. A third *thermometer* would have closed
-none of them.
+| Fault | Two sensors | With the overload channel |
+|---|---|---|
+| Winding sensor lying | late, past the limit | step 2 |
+| **Both** sensors lying (common cause) | never detected | step 2 |
+| Lying sensor plus latently dead frame | never detected | step 2 |
 
-**What it costs, which is the half usually left out.** The estimator knows only
-what was commanded, so it is blind to the plant. Degrade real cooling to a third
-of nominal and it predicts the nominal and misses the fault entirely; the winding
-sensor catches that one. Neither kind is sufficient. The pair is not redundancy,
-it is coverage of two disjoint failure classes, and that is what diversity means.
+**The sharpest result is why the first attempt failed.** A predicted-temperature
+channel looked right and passed every test, and was only passing because its
+model shared the plant's coefficients. A class 155 machine at a 100 K rated rise
+runs at **87% of its absolute insulation limit**, so solving the bounding
+constraints gave a tolerable prediction error of **0.00%**. An accumulator sits
+at *zero* during rated duty instead, and tolerates about +7% over-reading and
+46 to 75% under-reading. Real drives protect this way for exactly this reason.
 
-**And something still gets through.** At 0.9 rated load with degraded cooling,
-the estimator never trips; add a lying winding sensor and a dead frame channel
-and the winding reaches **270.7 C undetected**. That is three faults, so the
-harness cannot express it as a catalogued pair, and it is written into the safety
-argument rather than left for someone to find.
+**What it costs.** The overload channel knows only what was commanded, so a
+degraded plant leaves it at exactly zero and only a measurement notices. Neither
+kind is sufficient; the pair covers two disjoint failure classes. That is what
+diversity means, and it is why the fault the channel *cannot* see is catalogued
+even though it passes.
+
+**And something still gets through.** Combining both blind spots, a mild cooling
+degradation plus a lying winding sensor plus a dead frame channel, still drives
+the winding past its limit undetected. That is three faults, so the harness cannot
+express it as a pair, and it is written into the safety argument rather than left
+to be found.
 
 ## Three outcomes, not two
 
@@ -117,10 +128,10 @@ side by side.
 ## Layout
 
 ```
-docs/HAZARD_ANALYSIS.md      hazards, safety goals, 10 safety requirements with FTTI budgets
+docs/HAZARD_ANALYSIS.md      8 hazards, 7 safety goals, 11 safety requirements with FTTI budgets
 docs/SAFETY_ARGUMENT.md      claim, evidence, and at length what is NOT claimed
 docs/STANDARDS_MAPPING.md    one requirement through the automotive and industrial stacks
-catalog/faults.yaml          the 20 faults, as reviewable data rather than code
+catalog/faults.yaml          the 24 faults, as reviewable data rather than code
 src/fih/campaign.py          one fault per run, deterministic, records what the device did
 src/fih/report.py            judges those runs against the budgets
 src/fih/traceability.py      bidirectional gate; fails the build on a gap either way
@@ -137,14 +148,13 @@ uv run --group dev python scripts/build_report.py   # regenerate report/
 
 The device under test is **imported, not copied**: it is
 [`embedded-test-automation`](https://github.com/MKamel7/embedded-test-automation)
-pinned to tag `v1.5`. Both halves of that matter. Copying would fork the thing
+pinned to tag `v3.0`. Both halves of that matter. Copying would fork the thing
 being verified, so the evidence would no longer refer to the original. Tracking
 `main` would let the device's thresholds move underneath a published coverage
-report, and that has already happened twice: v1.2 changed the overheat trip from
-90 C to 140 C, and v1.5 added the second temperature source that this campaign
-asked for. Both times the pin meant the change arrived as a deliberate repin with
-the evidence regenerated, rather than as a silent shift under a published
-report.
+report, and that has happened at every release: the overheat trip moved, a second
+temperature channel appeared, the thermal model was validated and corrected, and
+a third channel replaced the second. Each arrived as a deliberate repin with the
+evidence regenerated, rather than as a silent shift under a published report.
 
 ## What is not claimed
 
