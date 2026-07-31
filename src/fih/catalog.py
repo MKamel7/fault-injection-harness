@@ -27,9 +27,20 @@ FAULT_CLASSES = {"sensor", "actuator", "communication", "timing"}
 EXPECTATIONS = {"detected", "residual"}
 SAFE_STATES = {"STO", "SS1", "none"}
 
+#: A condition that must already hold for the fault to mean anything. Named in
+#: the catalog rather than hard coded in the runner, because "this fault was
+#: only injected once the rotor was already jammed" is part of what the evidence
+#: says, and a reviewer must be able to see it without reading Python.
+PRECONDITIONS = {"stalled_rotor"}
+
 _REQUIRED = {"id", "title", "fault_class", "description", "injection",
              "challenges", "safe_state", "ftti_steps", "expectation"}
-_OPTIONAL = {"residual_rationale"}
+#: `history` records a fault that USED to behave differently, with the measured
+#: before and after. Optional, and deliberately not deleted once a gap closes: a
+#: catalog that erases the gap it fixed loses the evidence that fixing it
+#: mattered, and a reviewer can no longer tell a design that was always safe from
+#: one that was made safe.
+_OPTIONAL = {"residual_rationale", "history", "precondition"}
 
 DEFAULT_CATALOG = Path(__file__).resolve().parents[2] / "catalog" / "faults.yaml"
 
@@ -53,6 +64,8 @@ class Fault:
     ftti_steps: int | None
     expectation: str
     residual_rationale: str | None = None
+    history: str | None = None
+    precondition: str | None = None
 
     @property
     def is_residual(self) -> bool:
@@ -82,6 +95,10 @@ def _parse_fault(raw: dict[str, Any], seen: set[str]) -> Fault:
         _fail(fault_id, f"expectation {raw['expectation']!r} not in {sorted(EXPECTATIONS)}")
     if raw["safe_state"] not in SAFE_STATES:
         _fail(fault_id, f"safe_state {raw['safe_state']!r} not in {sorted(SAFE_STATES)}")
+
+    precondition = raw.get("precondition")
+    if precondition is not None and precondition not in PRECONDITIONS:
+        _fail(fault_id, f"precondition {precondition!r} not in {sorted(PRECONDITIONS)}")
 
     injection = raw["injection"]
     if not isinstance(injection, dict) or "hook" not in injection:
@@ -119,6 +136,9 @@ def _parse_fault(raw: dict[str, Any], seen: set[str]) -> Fault:
         expectation=str(raw["expectation"]),
         residual_rationale=(" ".join(str(raw["residual_rationale"]).split())
                             if raw.get("residual_rationale") else None),
+        history=(" ".join(str(raw["history"]).split())
+                 if raw.get("history") else None),
+        precondition=raw.get("precondition"),
     )
 
 

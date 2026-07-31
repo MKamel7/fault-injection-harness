@@ -147,10 +147,9 @@ def build(faults: tuple[Fault, ...], results: dict[str, RunResult],
         lines.append("")
         for req in unsatisfied:
             lines.append(f"- **{req.id}**: {req.text}")
-    else:   # pragma: no cover
-        # Unreachable today: SR-10 is challenged only by residual faults. The
-        # branch stays so the report is still correct once the design gains an
-        # independent thermal trip, at which point this becomes the live path.
+    else:
+        # The live path since DUT v1.5 gave the item a second temperature
+        # source. It was the unreachable one when SR-10 was still unmet.
         lines.append("None: every requirement has at least one fault the design detects.")
     lines.append("")
 

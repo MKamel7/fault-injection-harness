@@ -10,10 +10,10 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 
 ## Summary
 
-- Faults injected: **19**
-- Expected to be detected: **14**
-- Known residual: **5**
-- Verdicts met: **19 / 19**
+- Faults injected: **20**
+- Expected to be detected: **16**
+- Known residual: **4**
+- Verdicts met: **20 / 20**
 
 ## By fault class
 
@@ -21,7 +21,7 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 |---|---|---|---|
 | actuator | 2 | 1 | 1 |
 | communication | 8 | 7 | 1 |
-| sensor | 4 | 1 | 3 |
+| sensor | 5 | 3 | 2 |
 | timing | 5 | 5 | 0 |
 
 ## Detection and latency
@@ -36,9 +36,10 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 | FLT-C06 | communication | SR-06 | FAULT | 10 | 11 | PASS: detected at 10 of 11 steps |
 | FLT-C07 | communication | SR-02 | RUNNING | 0 (rejected) | 1 | PASS: rejected on arrival (0 steps) |
 | FLT-C08 | communication | SR-06 | RUNNING | n/a | n/a | PASS: residual as documented |
-| FLT-S01 | sensor | SR-10 | RUNNING | n/a | n/a | PASS: residual as documented |
+| FLT-S01 | sensor | SR-10 | FAULT | 2 | 20 | PASS: detected at 2 of 20 steps |
 | FLT-S02 | sensor | SR-03 | FAULT | 1 | 20 | PASS: detected at 1 of 20 steps |
-| FLT-S03 | sensor | SR-10 | RUNNING | n/a | n/a | PASS: residual as documented |
+| FLT-S03 | sensor | SR-10 | FAULT | 1 | 20 | PASS: detected at 1 of 20 steps |
+| FLT-S05 | sensor | SR-10 | RUNNING | n/a | n/a | PASS: residual as documented |
 | FLT-S04 | sensor | SR-09 | RUNNING | n/a | n/a | PASS: residual as documented |
 | FLT-A01 | actuator | SR-04 | FAULT | 2 | 20 | PASS: detected at 2 of 20 steps |
 | FLT-A02 | actuator | SR-09 | RUNNING | n/a | n/a | PASS: residual as documented |
@@ -59,19 +60,12 @@ Catalogued deliberately. A campaign reporting complete detection would not be cr
 - **Observed:** undetected, as documented
 - **Why it cannot be closed here:** The protocol carries no request identifier, so a well formed reply cannot be bound to the command that caused it. Closing this needs a data identifier in the protected frame, which is exactly what AUTOSAR E2E's Data ID and PROFIsafe's F_Destination_Address provide. Addressed in the protection layer, not by the bare protocol.
 
-### FLT-S01: Temperature sensor stuck at a safe value
+### FLT-S05: Both temperature sensors stuck at a safe value (common cause)
 
 - **Class:** sensor
 - **Challenges:** SR-10
-- **Observed:** winding reached 422 C while the sensor reported 40 C and the drive kept running
-- **Why it cannot be closed here:** MEASURED, not assumed: the winding reached 422 C, far past the 140 C insulation limit, while the sensor reported 40 C and the drive kept running. The item has a single temperature source and the protection trips on the reported value, so a sensor that lies defeats it completely. SR-10 is NOT satisfied by this design. Closing it needs a second independent measurement, or a plausibility check of temperature rise against commanded torque and elapsed time.
-
-### FLT-S03: Temperature sensor drifts low
-
-- **Class:** sensor
-- **Challenges:** SR-10
-- **Observed:** undetected, as documented
-- **Why it cannot be closed here:** Same root cause as FLT-S01 and harder to notice, because every individual reading is plausible. Measured: the winding reached 120 C while the sensor reported 60 C. A bias large enough to matter is indistinguishable from a cooler motor without a second source.
+- **Observed:** winding reached 410 C while the sensor reported 40 C and the drive kept running
+- **Why it cannot be closed here:** MEASURED against DUT v1.5, with the redundancy in place: the winding reached 409.6 C while both sensors reported 40 C and the drive kept running, which is exactly what the single channel design did. Redundancy defeats INDEPENDENT failures and does nothing whatever about common cause, and two sensors are two channels only for as long as they fail independently. A shared supply, a shared ADC reference, a shared harness or a shared connector makes them one channel wearing two names. This entry exists so that adding the second source cannot be read as closing SR-10 in general: it closes the independent case and names what is left. Closing this one is not a software change. It needs the two channels to be diverse in a way this model does not represent: different sensing principle, different supply, different conversion path, and an FMEDA to show the common cause fraction is acceptable.
 
 ### FLT-S04: Speed feedback stuck at zero
 
@@ -89,6 +83,4 @@ Catalogued deliberately. A campaign reporting complete detection would not be cr
 
 ## Requirements not satisfied by this design
 
-Every fault challenging these is residual, so the design does not currently meet them:
-
-- **SR-10**: Overtemperature protection shall not be defeated by a sensor reporting implausible values
+None: every requirement has at least one fault the design detects.

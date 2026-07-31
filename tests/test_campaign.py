@@ -10,6 +10,7 @@ fault got special treatment.
 from __future__ import annotations
 
 import pytest
+from dut_sim.motor_controller import OVERHEAT_LIMIT_C
 
 from fih.campaign import run
 from fih.catalog import Fault, load_catalog
@@ -96,19 +97,40 @@ def test_at_least_one_fault_is_residual() -> None:
     )
 
 
-def test_the_lying_sensor_actually_overheats_the_winding(results: dict) -> None:
-    """The defence in depth finding, asserted so it cannot silently disappear.
+def test_a_single_lying_sensor_no_longer_defeats_the_thermal_trip(results: dict) -> None:
+    """The finding that drove DUT v1.5, now inverted and still pinned.
 
-    FLT-S01 is the project's central result: a single temperature source means a
-    sensor that lies defeats the overheat protection completely. If a future
-    change to the DUT closes this, this test fails and the safety argument has
-    to be rewritten, which is the correct outcome.
+    It used to assert the opposite: that FLT-S01 cooked the winding undetected.
+    That assertion failing is what forced the second temperature source to be
+    built, which is exactly what it was written to do. It now pins the fix, so a
+    regression that removes the second channel fails here rather than quietly
+    restoring a hazard.
     """
     result = results["FLT-S01"]
-    assert result.overheated_undetected, (
-        "FLT-S01 no longer drives the winding past its limit undetected"
+    assert result.detected, "a lying winding sensor is no longer caught"
+    assert result.reached_safe_state
+    assert result.true_temperature_c < OVERHEAT_LIMIT_C, (
+        f"the drive tripped, but only after the winding reached "
+        f"{result.true_temperature_c:.0f} C, past the {OVERHEAT_LIMIT_C:.0f} C limit"
     )
-    assert result.true_temperature_c > result.sensed_temperature_c + 100, (
-        "the gap between true and sensed temperature has closed; check whether "
-        "the sensor model or the DUT changed"
+    assert result.true_temperature_c > result.sensed_temperature_c + 50, (
+        "the winding and the sensor no longer disagree, so this test is not "
+        "exercising the fault it was written for"
+    )
+
+
+def test_redundancy_does_not_survive_common_cause(results: dict) -> None:
+    """The honest counterweight to the entry above.
+
+    Adding a second sensor closes the INDEPENDENT failure and does nothing at all
+    about common cause. If this ever starts passing as detected, either the DUT
+    gained genuinely diverse channels or the injection stopped being common
+    cause, and both need the safety argument rewritten.
+    """
+    result = results["FLT-S05"]
+    assert not result.detected, "common cause is now detected; check what changed"
+    assert result.overheated_undetected
+    assert result.true_temperature_c > OVERHEAT_LIMIT_C * 2, (
+        f"the winding only reached {result.true_temperature_c:.0f} C, so the "
+        f"common cause case is no longer demonstrating an uncontrolled overheat"
     )

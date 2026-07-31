@@ -107,3 +107,13 @@ def test_a_requirement_defined_twice_is_rejected(tmp_path: Path) -> None:
     path.write_text("| SR-01 | first | SG-01 | 5 |\n| SR-01 | second | SG-01 | 5 |\n")
     with pytest.raises(TraceabilityError, match="defined twice"):
         load_requirements(path)
+
+
+def test_an_unknown_precondition_is_rejected(tmp_path: Path) -> None:
+    """A precondition that never gets armed would silently change the result.
+
+    The fault would still run, still pass, and be measuring a drive that was
+    never in the state the entry claims it was in.
+    """
+    with pytest.raises(CatalogError, match="precondition"):
+        _load(tmp_path, GOOD + "    precondition: rotor_on_fire\n")

@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 # coverage report: v1.2 of that package already changed the overheat trip from
 # 90 to 140 C. A safety artifact whose thresholds shift is worse than none.
 dependencies = [
-    "embedded-test-automation @ git+https://github.com/MKamel7/embedded-test-automation@v1.4",
+    "embedded-test-automation @ git+https://github.com/MKamel7/embedded-test-automation@v1.5",
     "PyYAML>=6.0",
 ]
 

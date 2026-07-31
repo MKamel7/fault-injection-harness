@@ -15,7 +15,7 @@ Both directions are enforced and the build fails on a gap in either: a requireme
 | SR-07 | FLT-T04 | satisfied |
 | SR-08 | FLT-T02, FLT-T03, FLT-T04 | satisfied |
 | SR-09 | FLT-S04, FLT-A02, FLT-T05 | satisfied |
-| SR-10 | FLT-S01, FLT-S03 | **NOT satisfied**, every fault challenging it is residual |
+| SR-10 | FLT-S01, FLT-S03, FLT-S05 | satisfied |
 
 | Fault | Class | Challenges | Expectation |
 |---|---|---|---|
@@ -27,9 +27,10 @@ Both directions are enforced and the build fails on a gap in either: a requireme
 | FLT-C06 | communication | SR-06 | detected |
 | FLT-C07 | communication | SR-02 | detected |
 | FLT-C08 | communication | SR-06 | residual |
-| FLT-S01 | sensor | SR-10 | residual |
+| FLT-S01 | sensor | SR-10 | detected |
 | FLT-S02 | sensor | SR-03 | detected |
-| FLT-S03 | sensor | SR-10 | residual |
+| FLT-S03 | sensor | SR-10 | detected |
+| FLT-S05 | sensor | SR-10 | residual |
 | FLT-S04 | sensor | SR-09 | residual |
 | FLT-A01 | actuator | SR-04 | detected |
 | FLT-A02 | actuator | SR-09 | residual |

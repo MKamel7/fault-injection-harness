@@ -8,6 +8,7 @@ So the gate is tested by deliberately breaking it.
 
 from __future__ import annotations
 
+import dataclasses
 import textwrap
 from pathlib import Path
 
@@ -116,11 +117,21 @@ def test_real_catalog_and_analysis_are_fully_traceable() -> None:
 
 
 def test_matrix_marks_requirements_met_only_by_residual_faults() -> None:
-    """SR-10 is challenged only by residual faults, so it must be flagged.
+    """A requirement can be fully traceable and still unsatisfied.
 
-    This is the finding the matrix exists to surface: a requirement can be fully
-    traceable and still unsatisfied, and a matrix that only showed linkage would
-    hide that.
+    That is the thing the matrix exists to surface, and a matrix that only
+    showed linkage would hide it. SR-10 was the real example until the second
+    temperature source closed it, so the case is now made synthetically rather
+    than dropped: the check has to keep working for the next gap.
     """
-    text = matrix_markdown(load_catalog(), load_requirements())
+    faults = load_catalog()
+    residual = next(f for f in faults if f.is_residual)
+    orphan = dataclasses.replace(residual, id="FLT-Z99", challenges=("SR-99",))
+    reqs = (*load_requirements(), Requirement(id="SR-99", text="nothing detects this"))
+
+    text = matrix_markdown((*faults, orphan), reqs)
     assert "**NOT satisfied**" in text
+    assert "SR-99" in text
+
+    # and the real catalog is now clean
+    assert "**NOT satisfied**" not in matrix_markdown(faults, load_requirements())

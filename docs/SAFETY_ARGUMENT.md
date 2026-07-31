@@ -30,7 +30,7 @@ Specifically **not** claimed:
 | That the DUT is production code | It is a simulation, deliberately, so that faults can be injected at points a real drive would not expose. |
 
 What the report **does** compute is **detection coverage over the injected fault
-set**: of the 19 faults in this catalog, how many the design detects, and after
+set**: of the 20 faults in this catalog, how many the design detects, and after
 how many steps. That is a statement about this catalog and nothing wider. The two
 get conflated constantly and the distinction is the first thing an assessor
 checks.
@@ -52,11 +52,11 @@ falsified by running the campaign would not be worth making.
 | Evidence | Where | What it supports |
 |---|---|---|
 | Hazard analysis: 6 hazards, 6 safety goals, 10 safety requirements, each with an FTTI budget | `docs/HAZARD_ANALYSIS.md` | The faults are derived, not invented |
-| Fault catalog: 19 entries across sensor, actuator, communication and timing | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
+| Fault catalog: 20 entries across sensor, actuator, communication and timing | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
 | Campaign: one fault per run, fresh device, fixed step budget, no randomness | `src/fih/campaign.py` | Reproducibility. The same fault gives the same result, asserted by test |
 | Bidirectional traceability, build fails on a gap in either direction | `src/fih/traceability.py`, `report/traceability.md` | Every requirement is verified and every fault answers a requirement |
 | Coverage report with latency against each FTTI | `report/coverage.md` | Detection *in time*, not just detection |
-| 86 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
+| 128 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
 
 ### Why the traceability gate runs in both directions
 
@@ -75,41 +75,104 @@ that has never been seen to fail is an assumption, not a control.
 
 ## 4. The headline finding
 
-**SR-10 is not satisfied by this design, and the campaign proves it rather than
-suspecting it.**
+**A single temperature source cannot protect against its own sensor, and the
+campaign measured that rather than suspecting it. The item now has two, and the
+gap that remains is common cause.**
 
-SR-10 requires that overtemperature protection not be defeated by a sensor
-reporting implausible values. FLT-S01 injects a temperature sensor stuck at a
-safe 40 C while the drive runs into a stall.
+### What was measured, before and after
 
-Measured result: **the winding reached 422 C**, far past the 140 C limit implied
-by the thermal class 155 (F) insulation of the reference motor, **while the
-sensor reported 40 C and the drive kept running**. Nothing tripped. Nothing
-could have: the item has a single temperature source, and the protection trips
-on the reported value.
+Like for like: identical physics, identical injection, the second channel
+suppressed in one run and present in the other. FLT-S01 stalls the rotor and
+holds the winding sensor at a safe 40 C.
 
-FLT-S03 is the same root cause and worse, because it is harder to notice. A
-sensor drifting 60 C low produces readings that are individually plausible; the
-winding passed 120 C while the sensor showed 60 C. There is no reading you could
-point at and call wrong.
+| | Trip | Peak winding temperature |
+|---|---|---|
+| One temperature source | **never** | **409.6 C** |
+| Two, with a cross check | step 2 | 115.5 C, inside the 140 C limit |
 
-This is the defence in depth argument in one measurement. A protection mechanism
-is only as good as the independence of what it measures, and a single channel
-device has no independence to offer. Closing it needs a second temperature
-source, or a plausibility model of temperature rise against commanded torque and
-elapsed time. Both are design changes, not test improvements, which is exactly
-why the finding belongs in the safety argument rather than in a bug tracker.
+409.6 C against a 140 C limit implied by thermal class 155 (F) insulation. The
+drive never noticed, and could not have: the protection trips on the reported
+value and the reported value was a lie. There was nothing in the item to
+disagree with it.
 
-The same structural argument covers the other residual faults: FLT-S04 (speed
-feedback stuck at zero) and FLT-A02 (torque silently lost) are both single source
-blind spots, and FLT-C08 (a well formed reply to the wrong command) cannot be
-detected by a protocol that carries no request identifier.
+### The three checks, and why two of them would not have been enough
 
-FLT-S01 is pinned by an explicit test, `test_the_lying_sensor_actually_overheats_
-the_winding`, so that a future change to the DUT which closes it **fails the
-build**. That sounds backwards. It is deliberate: if the design improves, this
-argument is out of date and must be rewritten, and a safety case that silently
-absorbs good news would also silently absorb bad news.
+DUT v1.5 adds a frame thermal node with its own sensor, and three checks run
+across the two channels:
+
+- **OVERTEMP_WINDING**, the primary limit. Fastest, and the one that matters
+  when everything works.
+- **OVERTEMP_HOUSING**, an independent path to the same protection. Slower,
+  because the frame lags the winding, but it does not depend on the winding
+  sensor being honest.
+- **SENSOR_IMPLAUSIBLE**, the cross check. Heat is generated in the winding and
+  flows outward, so while torque is commanded the frame is necessarily the
+  cooler node. A frame reading above the winding reading is not a hot motor, it
+  is an impossible one.
+
+The third check is the one worth arguing for. FLT-S03, a sensor drifting 60 C
+low, **never reaches either temperature limit**, so neither threshold fires.
+Only the disagreement between the channels exposes it, and it is caught at step
+1. That is the case for cross checking rather than for simply adding a second
+trip point, and it is why a second source is worth more than a redundant
+threshold.
+
+The cross check is armed only while torque is commanded, and that gate is load
+bearing rather than cautious. On cooldown the winding sheds heat faster than the
+frame it sits inside, so the frame legitimately becomes the hotter node,
+measured at 5.15 C past the 5.0 C margin from full speed. Without the gate a
+healthy motor would fault every time it stopped, and a protection mechanism that
+fires during normal operation gets switched off by whoever is on call.
+
+### What the redundancy still cannot do
+
+**FLT-S05 is the honest counterweight and it is residual.** With both channels
+reporting the same safe value, the winding reached **409.6 C undetected**,
+exactly as the single channel design did. Both limits stay quiet and the cross
+check agrees perfectly, all the way to destruction.
+
+Redundancy defeats **independent** failures and does nothing whatever about
+common cause. Two sensors are two channels only for as long as they fail
+independently; a shared supply, a shared ADC reference, a shared harness or a
+shared connector makes them one channel wearing two names. FLT-S05 exists so
+that adding the second source cannot be read as closing SR-10 in general. It
+closes the independent case and names what is left.
+
+Closing FLT-S05 is not a software change. It needs the channels to be diverse in
+a way this model does not represent: a different sensing principle, a different
+supply, a different conversion path, and an FMEDA to show the common cause
+fraction is acceptable. The remaining residual faults are the same shape:
+FLT-S04 (speed feedback stuck) and FLT-A02 (torque silently lost) are single
+source blind spots, and FLT-C08 (a well formed reply to the wrong command)
+cannot be detected by a protocol carrying no request identifier.
+
+### A correction worth recording
+
+The figure previously reported for this finding was 422 C, and it was wrong.
+That number came from an earlier injection model which transplanted temperature
+increments between a true and a sensed field, because the DUT then had no seam
+between physics and measurement. The transplant computed the cooling term at the
+**sensed** temperature, which was a lie, so cooling was understated and the
+number inflated. The comment describing that approximation called it
+"immaterial next to the fault being modelled". It was not immaterial; it was
+load bearing on the headline number.
+
+Two things changed as a result. The DUT gained a real sensor seam, so injection
+now overrides the **measurement** and never touches the physics. And the thermal
+sensor faults gained an explicit `precondition: stalled_rotor` in the catalog,
+because free running at 5000 rpm the winding equilibrates near 62 C and never
+approaches the limit at all: without a stall those faults were measuring a
+sensor lying about a motor that was never in danger.
+
+### Why these findings are pinned by tests
+
+`test_a_single_lying_sensor_no_longer_defeats_the_thermal_trip` and
+`test_redundancy_does_not_survive_common_cause` both fail if the design changes
+underneath them, in either direction. The first of those used to assert the
+opposite, that the winding cooked undetected; that assertion failing is what
+forced the second source to be built, which is exactly what it was written to
+do. A safety case that silently absorbs good news would also silently absorb bad
+news.
 
 ## 5. Limitations
 
@@ -137,7 +200,16 @@ exhaustive one, and no argument here says otherwise.
 **Single fault at a time.** Each run injects exactly one fault. Multi point
 faults, and in particular a latent fault plus a second fault, are not covered.
 This is a real gap: ISO 26262 latent fault metrics exist precisely because that
-combination is where single channel designs fail.
+combination is where redundant designs fail.
+
+FLT-S05 is the nearest this campaign comes, and it is worth being precise about
+what it is and is not. It injects a **common cause** failure, one root cause
+taking both channels at once, which is a single fault by ISO 26262's counting.
+It is not a multi point fault, and it says nothing about the case where the
+frame sensor has been quietly dead for a month before the winding sensor fails.
+That case is where a redundant design actually gets hurt, it needs a latent
+fault model and periodic diagnostics this item does not have, and it is not
+covered here.
 
 **The DUT's parameters are grounded, its dynamics are not.** Speeds, currents,
 torques and the temperature limit come from a Siemens SIMOTICS S-1FK2 datasheet,
@@ -155,12 +227,17 @@ protection, or any of the things that dominate real embedded failure.
 
 In the order a real project would do them:
 
-1. A second temperature source in the DUT, then re-run FLT-S01 and FLT-S03 and
-   watch SR-10 move from unsatisfied to satisfied. That is the smallest change
-   with the largest effect on the argument.
-2. Multi point fault injection, starting with a latent diagnostic failure plus a
-   primary fault.
-3. An FMEDA over a real bill of materials with SN 29500 rates, which is the only
+1. ~~A second temperature source in the DUT~~ **done in DUT v1.5.** SR-10 moved
+   from unsatisfied to satisfied for independent sensor failures, and FLT-S05
+   was added to name the common cause case that remains. It was, as predicted,
+   the smallest change with the largest effect on the argument.
+2. **Diverse** channels rather than merely redundant ones, which is what FLT-S05
+   actually needs: a different sensing principle, supply and conversion path,
+   plus an FMEDA to show the common cause fraction is acceptable. Note this is
+   the first item on this list that cannot be done in software.
+3. Multi point fault injection, starting with a latent diagnostic failure plus a
+   primary fault, which is the case FLT-S05 deliberately does not cover.
+4. An FMEDA over a real bill of materials with SN 29500 rates, which is the only
    route to a defensible diagnostic coverage figure.
-4. Running the campaign against a real drive over the actual fieldbus, at which
+5. Running the campaign against a real drive over the actual fieldbus, at which
    point the transport faults stop being decorators and become a broken cable.

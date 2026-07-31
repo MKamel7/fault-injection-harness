@@ -59,12 +59,12 @@ def test_undetected_fault_fails_its_verdict() -> None:
 
 def test_residual_fault_that_gets_detected_is_a_failure() -> None:
     """Good news is still a report defect until the rationale is updated."""
-    ok, why = verdict(BY_ID["FLT-S01"], _result(reached_safe_state=True))
+    ok, why = verdict(BY_ID["FLT-S05"], _result(reached_safe_state=True))
     assert not ok and "stale" in why
 
 
 def test_residual_fault_passes_by_staying_undetected() -> None:
-    ok, _ = verdict(BY_ID["FLT-S01"], _result(reached_safe_state=False, detected_at_step=None))
+    ok, _ = verdict(BY_ID["FLT-S05"], _result(reached_safe_state=False, detected_at_step=None))
     assert ok
 
 
@@ -100,14 +100,35 @@ def test_report_names_every_residual_fault_with_its_rationale() -> None:
             )
 
 
-def test_report_lists_requirements_the_design_does_not_meet() -> None:
-    """SR-10 must appear here. It is the headline finding."""
+def test_every_requirement_now_has_at_least_one_detecting_fault() -> None:
+    """SR-10 used to be listed here as unmet. The second source closed it.
+
+    The section is still generated and still tested, by
+    test_report_flags_a_requirement_met_only_by_residual_faults below, because
+    the machinery has to keep working for the next gap. What changed is the
+    design, not the check.
+    """
     text, _ = build(CATALOG, run_all(CATALOG), REQUIREMENTS)
     section = text.split("## Requirements not satisfied by this design")[1]
-    assert "SR-10" in section, (
-        "SR-10 is challenged only by residual faults, so the report must say the "
-        "design does not meet it"
-    )
+    assert "None: every requirement" in section, section
+
+
+def test_report_flags_a_requirement_met_only_by_residual_faults() -> None:
+    """Synthetic, because the real design no longer has such a requirement.
+
+    Written against fabricated inputs on purpose: the day a new residual-only
+    requirement appears is the day this path matters most, and that is the worst
+    possible time to discover it was never exercised.
+    """
+    from fih.traceability import Requirement
+
+    fault = dataclasses.replace(BY_ID["FLT-S05"], challenges=("SR-99",))
+    req = Requirement(id="SR-99", text="a requirement nothing detects")
+    text, ok = build((fault,), {fault.id: run_all((fault,))[fault.id]}, (req,))
+    assert ok, "the residual fault should still meet its own verdict"
+    section = text.split("## Requirements not satisfied by this design")[1]
+    assert "SR-99" in section
+    assert "does not currently meet them" in text
 
 
 # --- the protection comparison -----------------------------------------------

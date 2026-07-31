@@ -123,9 +123,14 @@ def run(fault: Fault, steps: int = RUN_STEPS) -> RunResult:
         notes = "command rejected on arrival"
 
     # Faults that need something already wrong before the behaviour under test
-    # is meaningful. Resetting a healthy drive proves nothing, and a safe state
-    # cannot be hammered until the drive is in one.
-    if fault.hook in {"reset_without_clearing", "hammer_commands_in_fault"}:
+    # is meaningful, declared per fault in the catalog. Resetting a healthy
+    # drive proves nothing, a safe state cannot be hammered until the drive is
+    # in one, and a lying temperature sensor is only hazardous when the winding
+    # is ACTUALLY cooking. Free running at 5000 rpm the winding equilibrates
+    # around 62 C, well under the 140 C limit, so injecting a thermal sensor
+    # fault there would measure a sensor lying about a motor that was never in
+    # danger and would overstate nothing but also prove nothing.
+    if fault.precondition == "stalled_rotor":
         dut.inject_stall(True)
 
     kicking = fault.hook not in {"starve_watchdog", "late_watchdog_kick"}
@@ -202,7 +207,7 @@ def run(fault: Fault, steps: int = RUN_STEPS) -> RunResult:
     )
     if overheated_undetected:
         notes = (f"winding reached {dut.true_temperature_c:.0f} C while the sensor "
-                 f"reported {dut.temperature_c:.0f} C and the drive kept running")
+                 f"reported {dut.read_winding_c():.0f} C and the drive kept running")
 
     return RunResult(
         fault_id=fault.id,
@@ -210,7 +215,7 @@ def run(fault: Fault, steps: int = RUN_STEPS) -> RunResult:
         detected_at_step=detected_at,
         final_state=dut.state,
         true_temperature_c=round(dut.true_temperature_c, 1),
-        sensed_temperature_c=round(dut.temperature_c, 1),
+        sensed_temperature_c=round(dut.read_winding_c(), 1),
         overheated_undetected=overheated_undetected,
         rejected_command=rejected,
         telemetry_readable=telemetry_readable,

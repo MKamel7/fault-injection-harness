@@ -140,18 +140,23 @@ faults:
       The reported winding temperature never leaves ambient while the winding
       actually heats. Any protection reading only the reported value is blind.
     injection: {hook: temperature_stuck, params: {at_c: 40.0}}
+    precondition: stalled_rotor
     challenges: [SR-10]
-    safe_state: none
-    ftti_steps: null
-    expectation: residual
-    residual_rationale: >
-      MEASURED, not assumed: the winding reached 422 C, far past the 140 C
-      insulation limit, while the sensor reported 40 C and the drive kept
-      running. The item has a single temperature source and the protection trips
-      on the reported value, so a sensor that lies defeats it completely. SR-10
-      is NOT satisfied by this design. Closing it needs a second independent
-      measurement, or a plausibility check of temperature rise against commanded
-      torque and elapsed time.
+    safe_state: STO
+    ftti_steps: 20
+    expectation: detected
+    history: >
+      WAS RESIDUAL until DUT v1.5, and this entry is the reason the second
+      temperature source exists. Measured like for like, same physics and same
+      injection, with only the second channel suppressed: with ONE temperature
+      source the drive never trips at all and the winding reaches 409.6 C
+      against a 140 C insulation limit, because the protection trips on the
+      reported value and the reported value is a lie. With TWO it trips at step
+      2 with the winding at 115.5 C, still inside the limit, because the frame
+      keeps heating while the winding sensor insists on ambient and that
+      ordering is physically impossible. The finding is kept here rather than
+      deleted: a catalog that erases the gap it closed loses the evidence that
+      closing it mattered. See FLT-S05 for what the redundancy still cannot do.
 
   - id: FLT-S02
     title: Temperature sensor stuck at an alarming value
@@ -173,15 +178,48 @@ faults:
       A slow negative bias, the hardest sensor fault to notice, because every
       individual reading is plausible.
     injection: {hook: temperature_bias, params: {offset_c: -60.0}}
+    precondition: stalled_rotor
+    challenges: [SR-10]
+    safe_state: STO
+    ftti_steps: 20
+    expectation: detected
+    history: >
+      WAS RESIDUAL until DUT v1.5. Same root cause as FLT-S01 and harder,
+      because every individual reading is plausible and a bias large enough to
+      matter was indistinguishable from a cooler motor. It is now caught at step
+      1, and by only ONE of the three thermal checks: neither temperature limit
+      is ever reached, so nothing but the DISAGREEMENT between the two channels
+      exposes it. That is the argument for cross checking rather than for simply
+      adding a second trip point, and it is why the second source is worth more
+      than a redundant threshold.
+
+  - id: FLT-S05
+    title: Both temperature sensors stuck at a safe value (common cause)
+    fault_class: sensor
+    description: >
+      The fault the second temperature source cannot answer. Both channels
+      report ambient while the winding cooks, so the two limits never trip and
+      the cross check between them agrees perfectly, all the way to destruction.
+    injection: {hook: both_temperatures_stuck, params: {at_c: 40.0}}
+    precondition: stalled_rotor
     challenges: [SR-10]
     safe_state: none
     ftti_steps: null
     expectation: residual
     residual_rationale: >
-      Same root cause as FLT-S01 and harder to notice, because every individual
-      reading is plausible. Measured: the winding reached 120 C while the sensor
-      reported 60 C. A bias large enough to matter is indistinguishable from a
-      cooler motor without a second source.
+      MEASURED against DUT v1.5, with the redundancy in place: the winding
+      reached 409.6 C while both sensors reported 40 C and the drive kept
+      running, which is exactly what the single channel design did. Redundancy defeats INDEPENDENT
+      failures and does nothing whatever about common cause, and two sensors are
+      two channels only for as long as they fail independently. A shared supply,
+      a shared ADC reference, a shared harness or a shared connector makes them
+      one channel wearing two names. This entry exists so that adding the second
+      source cannot be read as closing SR-10 in general: it closes the
+      independent case and names what is left. Closing this one is not a
+      software change. It needs the two channels to be diverse in a way this
+      model does not represent: different sensing principle, different supply,
+      different conversion path, and an FMEDA to show the common cause fraction
+      is acceptable.
 
   - id: FLT-S04
     title: Speed feedback stuck at zero
@@ -264,6 +302,7 @@ faults:
       service, but must trip again rather than run on with the condition still
       present.
     injection: {hook: reset_without_clearing, params: {}}
+    precondition: stalled_rotor
     challenges: [SR-08]
     safe_state: STO
     ftti_steps: 20
@@ -276,6 +315,7 @@ faults:
       A supervisor that has not noticed the fault keeps commanding speed. The
       safe state must hold under sustained pressure, not merely once.
     injection: {hook: hammer_commands_in_fault, params: {count: 50}}
+    precondition: stalled_rotor
     challenges: [SR-07, SR-08]
     safe_state: STO
     ftti_steps: 20

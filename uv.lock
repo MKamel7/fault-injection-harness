@@ -330,8 +330,8 @@ wheels = [
 
 [[package]]
 name = "embedded-test-automation"
-version = "1.4.0"
-source = { git = "https://github.com/MKamel7/embedded-test-automation?rev=v1.4#0b061a5d52b977702668a7c2dff931c631bcd576" }
+version = "1.5.0"
+source = { git = "https://github.com/MKamel7/embedded-test-automation?rev=v1.5#a1f82b853cf1a5d40632e65821375c19372d8748" }
 
 [[package]]
 name = "exceptiongroup"
@@ -369,7 +369,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "embedded-test-automation", git = "https://github.com/MKamel7/embedded-test-automation?rev=v1.4" },
+    { name = "embedded-test-automation", git = "https://github.com/MKamel7/embedded-test-automation?rev=v1.5" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 
