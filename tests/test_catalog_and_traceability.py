@@ -116,22 +116,52 @@ def test_real_catalog_and_analysis_are_fully_traceable() -> None:
     assert all(ids for ids in mapping.values())
 
 
-def test_matrix_marks_requirements_met_only_by_residual_faults() -> None:
-    """A requirement can be fully traceable and still unsatisfied.
+def test_matrix_reports_a_requirement_unmet_when_any_challenge_is_unhandled() -> None:
+    """Satisfaction is universal, not existential.
 
-    That is the thing the matrix exists to surface, and a matrix that only
-    showed linkage would hide it. SR-10 was the real example until the second
-    temperature source closed it, so the case is now made synthetically rather
-    than dropped: the check has to keep working for the next gap.
+    The matrix exists to surface that a requirement can be fully traceable and
+    still unsatisfied. It reported SR-10 as satisfied under an earlier,
+    existential rule while a sensor stuck at ambient let the winding reach
+    207 C, so the rule itself is now asserted rather than assumed.
     """
     faults = load_catalog()
-    residual = next(f for f in faults if f.is_residual)
-    orphan = dataclasses.replace(residual, id="FLT-Z99", challenges=("SR-99",))
-    reqs = (*load_requirements(), Requirement(id="SR-99", text="nothing detects this"))
+    text = matrix_markdown(faults, load_requirements())
 
-    text = matrix_markdown((*faults, orphan), reqs)
-    assert "**NOT satisfied**" in text
-    assert "SR-99" in text
+    by_req = {line.split("|")[1].strip(): line
+              for line in text.splitlines() if line.startswith("| SR-")}
 
-    # and the real catalog is now clean
-    assert "**NOT satisfied**" not in matrix_markdown(faults, load_requirements())
+    for req, row in by_req.items():
+        ids = [i.strip() for i in row.split("|")[2].split(",")]
+        unhandled = [f.id for f in faults if f.id in ids and not f.protects]
+        if unhandled:
+            assert "NOT satisfied" in row, (
+                f"{req} is challenged by unhandled {unhandled} and still reads "
+                f"as satisfied"
+            )
+            for fid in unhandled:
+                assert fid in row, f"{req} does not name its counterexample {fid}"
+        else:
+            assert "NOT satisfied" not in row, f"{req} is unmet with no reason given"
+
+    assert any("NOT satisfied" in r for r in by_req.values()), (
+        "no requirement is unmet, so this test is not exercising the case it "
+        "was written for"
+    )
+
+
+def test_a_requirement_broken_only_by_lateness_says_only_that() -> None:
+    """The reason has to name which kind of failure it was.
+
+    "Not satisfied" alone would leave a reader unable to tell a design that
+    never notices a fault from one that notices it too late, and those call for
+    completely different fixes: a new diagnostic versus a faster one.
+    """
+    faults = load_catalog()
+    late = next(f for f in faults if f.is_late)
+    only_late = dataclasses.replace(late, id="FLT-Z98", challenges=("SR-99",))
+    reqs = (*load_requirements(), Requirement(id="SR-99", text="late only"))
+
+    row = next(line for line in matrix_markdown((*faults, only_late), reqs).splitlines()
+               if line.startswith("| SR-99 "))
+    assert "detected outside budget: FLT-Z98" in row
+    assert "undetected" not in row

@@ -143,18 +143,36 @@ faults:
     precondition: stalled_rotor
     challenges: [SR-10]
     safe_state: STO
-    ftti_steps: 20
-    expectation: detected
+    ftti_steps: 7
+    expectation: late
+    late_rationale: >
+      MEASURED against DUT v2.0, whose thermal model was validated against the
+      data sheet: the cross check fires at step 12, five steps past the 7 step
+      budget, and by then the winding has reached 207 C against a 140 C limit.
+      The insulation is already damaged. Detection is not protection, and this
+      entry exists so the difference cannot be rounded away.
+      The cause is structural rather than a tuning error. The frame is a larger
+      thermal mass than the winding, so its temperature necessarily LAGS, and a
+      cross check cannot react faster than its slower channel responds. Under
+      locked rotor current the winding covers its whole permitted rise in 7
+      steps, which no second thermometer placed further from the heat can match.
+      What would close it is not a better sensor but a different KIND of second
+      channel: a model based estimator that integrates commanded current over
+      time and compares the predicted rise against the reported one. An
+      estimator has no thermal mass and so no lag, and it is what a real drive
+      uses for exactly this reason. That is a design change, not a threshold
+      change.
     history: >
       WAS RESIDUAL until DUT v1.5, and this entry is the reason the second
       temperature source exists. Measured like for like, same physics and same
       injection, with only the second channel suppressed: with ONE temperature
-      source the drive never trips at all and the winding reaches 409.6 C
-      against a 140 C insulation limit, because the protection trips on the
-      reported value and the reported value is a lie. With TWO it trips at step
-      2 with the winding at 115.5 C, still inside the limit, because the frame
-      keeps heating while the winding sensor insists on ambient and that
-      ordering is physically impossible. The finding is kept here rather than
+      source the drive never trips at all and the winding runs away past 1100 C.
+      With TWO it trips at step 12 at 207 C. The second source turns an
+      unbounded excursion into a bounded one, which is a large improvement and
+      is still not protection, because 207 C is past the insulation limit. The
+      earlier figures recorded here (409.6 C and a step 2 trip inside the limit)
+      came from a thermal model that was later found to understate rated duty
+      heating by 8.3x and to scale loss with speed rather than current. The finding is kept here rather than
       deleted: a catalog that erases the gap it closed loses the evidence that
       closing it mattered. See FLT-S05 for what the redundancy still cannot do.
 
@@ -168,7 +186,7 @@ faults:
     injection: {hook: temperature_stuck, params: {at_c: 200.0}}
     challenges: [SR-03]
     safe_state: STO
-    ftti_steps: 20
+    ftti_steps: 7
     expectation: detected
 
   - id: FLT-S03
@@ -181,7 +199,7 @@ faults:
     precondition: stalled_rotor
     challenges: [SR-10]
     safe_state: STO
-    ftti_steps: 20
+    ftti_steps: 7
     expectation: detected
     history: >
       WAS RESIDUAL until DUT v1.5. Same root cause as FLT-S01 and harder,
@@ -208,7 +226,7 @@ faults:
     expectation: residual
     residual_rationale: >
       MEASURED against DUT v1.5, with the redundancy in place: the winding
-      reached 409.6 C while both sensors reported 40 C and the drive kept
+      ran away past 1500 C while both sensors reported 40 C and the drive kept
       running, which is exactly what the single channel design did. Redundancy defeats INDEPENDENT
       failures and does nothing whatever about common cause, and two sensors are
       two channels only for as long as they fail independently. A shared supply,
@@ -249,7 +267,7 @@ faults:
     injection: {hook: stall_rotor, params: {}}
     challenges: [SR-04]
     safe_state: STO
-    ftti_steps: 20
+    ftti_steps: 7
     expectation: detected
 
   - id: FLT-A02

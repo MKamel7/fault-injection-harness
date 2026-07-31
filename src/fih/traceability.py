@@ -115,9 +115,26 @@ def matrix_markdown(faults: tuple[Fault, ...],
     ]
     for req in requirements:
         ids = mapping[req.id]
-        detecting = [i for i in ids if not by_id[i].is_residual]
-        verdict = ("satisfied" if detecting
-                   else "**NOT satisfied**, every fault challenging it is residual")
+        # A requirement is a UNIVERSAL claim, so one unhandled challenge
+        # falsifies it. Satisfied means every fault challenging it is detected
+        # inside its budget, not that at least one is.
+        #
+        # The weaker rule, at least one detecting fault, was in place first and
+        # reported SR-10 as satisfied while a sensor stuck at ambient let the
+        # winding reach 207 C. One passing example does not establish a claim
+        # that quantifies over all of them, and a matrix that scores it that way
+        # is measuring test presence rather than requirement satisfaction.
+        late = [i for i in ids if by_id[i].is_late]
+        residual = [i for i in ids if by_id[i].is_residual]
+        if not late and not residual:
+            verdict = "satisfied"
+        else:
+            why = []
+            if late:
+                why.append(f"detected outside budget: {', '.join(late)}")
+            if residual:
+                why.append(f"undetected: {', '.join(residual)}")
+            verdict = "**NOT satisfied**, " + "; ".join(why)
         lines.append(f"| {req.id} | {', '.join(ids)} | {verdict} |")
 
     lines += ["", "| Fault | Class | Challenges | Expectation |", "|---|---|---|---|"]

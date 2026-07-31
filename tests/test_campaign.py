@@ -97,25 +97,41 @@ def test_at_least_one_fault_is_residual() -> None:
     )
 
 
-def test_a_single_lying_sensor_no_longer_defeats_the_thermal_trip(results: dict) -> None:
-    """The finding that drove DUT v1.5, now inverted and still pinned.
+def test_a_single_lying_sensor_is_caught_but_not_in_time(results: dict) -> None:
+    """The finding, twice revised, and each revision was the tests working.
 
-    It used to assert the opposite: that FLT-S01 cooked the winding undetected.
-    That assertion failing is what forced the second temperature source to be
-    built, which is exactly what it was written to do. It now pins the fix, so a
-    regression that removes the second channel fails here rather than quietly
-    restoring a hazard.
+    Version one asserted the winding cooked undetected. That failed when the
+    device gained a second temperature source, which is what forced the second
+    source to exist.
+
+    Version two asserted the trip happened inside the insulation limit. That
+    failed when the device's thermal model was validated against its data sheet
+    and found to understate rated duty heating by 8.3x while scaling loss with
+    speed instead of current. With physically correct heating the winding covers
+    its whole permitted rise in 7 steps, and the frame, being the larger thermal
+    mass, cannot follow fast enough.
+
+    So the honest claim is narrower than it was: the second source turns an
+    unbounded excursion into a bounded one, and does not keep the winding safe.
+    Detection is not protection.
     """
     result = results["FLT-S01"]
-    assert result.detected, "a lying winding sensor is no longer caught"
-    assert result.reached_safe_state
-    assert result.true_temperature_c < OVERHEAT_LIMIT_C, (
-        f"the drive tripped, but only after the winding reached "
-        f"{result.true_temperature_c:.0f} C, past the {OVERHEAT_LIMIT_C:.0f} C limit"
+    assert result.detected and result.reached_safe_state
+
+    fault = next(f for f in CATALOG if f.id == "FLT-S01")
+    assert fault.ftti_steps is not None
+    assert result.detected_at_step is not None
+    assert result.detected_at_step > fault.ftti_steps, (
+        "FLT-S01 now detects inside its budget; if that is real the catalog "
+        "entry and the safety argument both need rewriting"
     )
-    assert result.true_temperature_c > result.sensed_temperature_c + 50, (
-        "the winding and the sensor no longer disagree, so this test is not "
-        "exercising the fault it was written for"
+    assert result.true_temperature_c > OVERHEAT_LIMIT_C, (
+        "the winding no longer exceeds its limit before the trip, which would "
+        "mean the lag argument in the catalog is stale"
+    )
+    assert result.true_temperature_c < 400, (
+        f"the excursion reached {result.true_temperature_c:.0f} C; the whole "
+        f"value of the second channel is that it bounds the excursion at all"
     )
 
 

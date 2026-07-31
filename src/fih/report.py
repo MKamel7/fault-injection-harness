@@ -43,6 +43,17 @@ def verdict(fault: Fault, result: RunResult) -> tuple[bool, str]:
         return False, "not detected"
 
     latency = result.detected_at_step
+    if fault.is_late:
+        # A LATE fault passes by being late, exactly as a residual one passes by
+        # being undetected. The verdict records that the design behaved as
+        # documented; it does NOT record that the requirement was met, and the
+        # traceability matrix is where that distinction is enforced.
+        assert fault.ftti_steps is not None
+        if latency is None or latency <= fault.ftti_steps:
+            return False, ("expected detection outside the budget but it came in "
+                           "on time; the recorded rationale is now stale")
+        return True, (f"detected at {latency} steps, OUTSIDE the "
+                      f"{fault.ftti_steps} step budget, as documented")
     if latency is None:
         # Rejected on arrival, which is detection at the protocol boundary
         # before any step elapsed.
@@ -63,7 +74,8 @@ def build(faults: tuple[Fault, ...], results: dict[str, RunResult],
     verdicts = {f.id: verdict(f, results[f.id]) for f in faults}
     all_ok = all(ok for ok, _ in verdicts.values())
 
-    detected = [f for f in faults if not f.is_residual]
+    detected = [f for f in faults if f.protects]
+    late = [f for f in faults if f.is_late]
     residual = [f for f in faults if f.is_residual]
     by_class: dict[str, list[Fault]] = defaultdict(list)
     for fault in faults:
@@ -89,19 +101,22 @@ def build(faults: tuple[Fault, ...], results: dict[str, RunResult],
         "## Summary",
         "",
         f"- Faults injected: **{len(faults)}**",
-        f"- Expected to be detected: **{len(detected)}**",
+        f"- Detected within budget: **{len(detected)}**",
+        f"- Detected but OUTSIDE budget: **{len(late)}**",
         f"- Known residual: **{len(residual)}**",
         f"- Verdicts met: **{sum(1 for ok, _ in verdicts.values() if ok)} / {len(faults)}**",
         "",
         "## By fault class",
         "",
-        "| Class | Injected | Detected by design | Residual |",
-        "|---|---|---|---|",
+        "| Class | Injected | Detected in time | Detected late | Residual |",
+        "|---|---|---|---|---|",
     ]
     for cls in sorted(by_class):
         group = by_class[cls]
         res = [f for f in group if f.is_residual]
-        lines.append(f"| {cls} | {len(group)} | {len(group) - len(res)} | {len(res)} |")
+        lt = [f for f in group if f.is_late]
+        lines.append(f"| {cls} | {len(group)} | {len(group) - len(res) - len(lt)} "
+                     f"| {len(lt)} | {len(res)} |")
 
     lines += [
         "",
@@ -139,18 +154,20 @@ def build(faults: tuple[Fault, ...], results: dict[str, RunResult],
                   f"- **Why it cannot be closed here:** {fault.residual_rationale}", ""]
 
     lines += ["## Requirements not satisfied by this design", ""]
+    # Universal claim: one unhandled challenge falsifies it. See traceability.
     unsatisfied = [req for req in requirements
-                   if all(by_id[i].is_residual for i in mapping[req.id])]
+                   if not all(by_id[i].protects for i in mapping[req.id])]
     if unsatisfied:
-        lines.append("Every fault challenging these is residual, so the design "
-                     "does not currently meet them:")
+        lines.append("At least one fault challenging each of these is either "
+                     "undetected or detected outside its budget. A requirement "
+                     "quantifies over every way it can be broken, so one "
+                     "unhandled challenge is enough to leave it unmet:")
         lines.append("")
         for req in unsatisfied:
             lines.append(f"- **{req.id}**: {req.text}")
     else:
-        # The live path since DUT v1.5 gave the item a second temperature
-        # source. It was the unreachable one when SR-10 was still unmet.
-        lines.append("None: every requirement has at least one fault the design detects.")
+        lines.append("None: every fault challenging every requirement is "
+                     "detected inside its budget.")
     lines.append("")
 
     return "\n".join(lines), all_ok

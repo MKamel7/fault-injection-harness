@@ -102,7 +102,7 @@ _BEHAVIOURAL_HOOKS = {
 def run(fault: Fault, steps: int = RUN_STEPS) -> RunResult:
     """Inject one fault and observe the device for `steps` steps."""
     dut = ActuatorFaultedController()
-    tx = FaultyTransport(SimTransport(dut))
+    tx = FaultyTransport(SimTransport(dut, steps_per_request=0))
     driver = MotorControllerDriver(tx)
 
     _arm(fault, dut, tx)
@@ -140,6 +140,14 @@ def run(fault: Fault, steps: int = RUN_STEPS) -> RunResult:
     dut.handle_command(f"WDG_EN {WATCHDOG_BUDGET}")
 
     detected_at: int | None = None
+    # The CAMPAIGN owns the clock, which is why the transport is built with
+    # steps_per_request=0. By default SimTransport advances the device once per
+    # request, so a loop iteration that sent a watchdog kick AND called step()
+    # advanced it twice, and every latency this campaign reported was in units
+    # of two device steps while every FTTI budget was written in one. The two
+    # were compared directly. Found by validating the device against its data
+    # sheet, which changed the thermal numbers enough to make the discrepancy
+    # visible; it had been silently wrong since the first run.
     for step in range(1, steps + 1):
         # Kicks go through the FAULTY TRANSPORT, not straight to the controller.
         # Sending them directly would keep the watchdog fed across a dead link,

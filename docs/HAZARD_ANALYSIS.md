@@ -143,14 +143,14 @@ Each is testable, and each is challenged by at least one fault in the catalog.
 |---|---|---|---|
 | SR-01 | A speed command above the rated maximum shall be rejected, not clamped | SG-01 | 1 step |
 | SR-02 | A malformed or non-numeric speed command shall be rejected | SG-01, SG-04 | 1 step |
-| SR-03 | On winding temperature reaching the limit, the drive shall enter STO | SG-02, SG-03 | 20 steps |
-| SR-04 | On a stalled rotor with torque commanded, the drive shall enter STO before the insulation limit is exceeded | SG-02, SG-03 | 20 steps |
+| SR-03 | On winding temperature reaching the limit, the drive shall enter STO | SG-02, SG-03 | 7 steps |
+| SR-04 | On a stalled rotor with torque commanded, the drive shall enter STO before the insulation limit is exceeded | SG-02, SG-03 | 7 steps |
 | SR-05 | Loss of the command channel beyond the watchdog budget shall enter STO | SG-02, SG-04 | budget + 1 |
 | SR-06 | Repeated or stale responses shall not be accepted as evidence of liveness | SG-04 | budget + 1 |
 | SR-07 | In STO, speed commands shall be rejected | SG-05 | 1 step |
 | SR-08 | STO shall persist through cooldown and through every command except an explicit reset | SG-05 | invariant |
 | SR-09 | Telemetry shall remain readable in STO, so the cause is diagnosable | SG-02 | invariant |
-| SR-10 | Overtemperature protection shall not be defeated by a sensor reporting implausible values | SG-06 | 20 steps |
+| SR-10 | Overtemperature protection shall not be defeated by a sensor reporting implausible values | SG-06 | 7 steps |
 
 ## 9. Notes carried into the catalog
 

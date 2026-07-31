@@ -117,3 +117,14 @@ def test_an_unknown_precondition_is_rejected(tmp_path: Path) -> None:
     """
     with pytest.raises(CatalogError, match="precondition"):
         _load(tmp_path, GOOD + "    precondition: rotor_on_fire\n")
+
+
+def test_a_late_fault_must_explain_why_it_cannot_be_faster(tmp_path: Path) -> None:
+    """Otherwise "detected late" becomes a place to file inconvenient results."""
+    with pytest.raises(CatalogError, match="why detection cannot be brought"):
+        _load(tmp_path, GOOD.replace("expectation: detected", "expectation: late"))
+
+
+def test_a_late_rationale_on_an_ordinary_fault_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(CatalogError, match="meaningless unless"):
+        _load(tmp_path, GOOD + "    late_rationale: it is slow\n")

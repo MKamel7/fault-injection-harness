@@ -9,8 +9,9 @@ protection layer configured as **both AUTOSAR E2E and PROFIsafe**, and the two
 are compared on the same fault set.
 
 ```
-20 faults    16 detected    4 residual, each named with its rationale
-128 tests    100% branch coverage    ruff + mypy strict    all gated in CI
+20 faults   15 detected in time   1 detected too late   4 residual
+135 tests   100% branch coverage   ruff + mypy strict   all gated in CI
+3 of 10 safety requirements currently NOT met, each named with why
 ```
 
 ## What this is for
@@ -38,37 +39,51 @@ detection would not be credible.
 
 ## The headline finding
 
-**A single temperature source cannot protect against its own sensor.** The
-campaign measured it rather than suspecting it, and the measurement drove a
-change to the device itself. Like for like, same physics, same injection, with
-only the second channel suppressed:
+**Detection is not protection**, and this project's central result is a case
+where the difference decides whether a motor survives.
 
-| | Trip | Peak winding temperature |
+A single temperature source cannot protect against its own sensor. Adding a
+second one bounds the damage and still does not prevent it, because the second
+channel is physically too slow.
+
+| FLT-S01, winding sensor stuck at a safe value | Trip | Peak winding |
 |---|---|---|
-| One temperature source | **never** | **409.6 C** |
-| Two, with a cross check | step 2 | 115.5 C, inside the 140 C limit |
+| One temperature source | **never** | **1167 C** and climbing |
+| Two, with a cross check | step 12 | **207 C** |
+| Budget | by step 7 | 140 C |
 
-The drive never noticed and could not have: the protection trips on the reported
-value, and the reported value was a lie. So DUT v1.5 gained a frame thermal node
-with its own sensor, and three checks now run across the two channels. The
-interesting one is the cross check: heat flows from the winding outward, so while
-torque is commanded the frame is necessarily the cooler node, and a frame reading
-above the winding reading is not a hot motor but an impossible one. That check is
-the **only** thing that catches a sensor drifting 60 C low, because such a sensor
-never reaches either temperature limit.
+The budget is **derived, not chosen**: under locked rotor current the winding
+covers its entire permitted rise, 40 C to 140 C, in 7 steps. That is all the time
+any thermal protection has.
 
-**And the fix is deliberately not oversold.** FLT-S05 injects the same lie into
-*both* channels, and it is residual: the winding reached **409.6 C undetected**,
-exactly as the single channel design did. Redundancy defeats independent
-failures and does nothing whatever about common cause. Two sensors are two
-channels only for as long as they fail independently, and a shared supply,
-reference or harness makes them one channel wearing two names. Closing that one
-is not a software change.
+The second source converts an unbounded excursion into a bounded one, which is a
+large improvement and is not protection. The cause is structural: the frame is a
+larger thermal mass, so it necessarily lags, and a cross check cannot react
+faster than its slower channel responds. Closing it needs a different **kind** of
+channel, a model based estimator that integrates commanded current and has no
+thermal mass and therefore no lag, which is exactly why real drives use one.
 
-Both results are pinned by tests, so a change in either direction fails the
-build. The first of those tests used to assert the opposite, that the winding
-cooked undetected; that assertion failing is what forced the second source to be
-built.
+**Where the second source does work:** a sensor drifting 60 C low is caught at
+step 1, and by only one of the three checks. Neither temperature limit is ever
+reached, so nothing but the disagreement between channels exposes it. That is the
+argument for cross checking rather than for a second trip point.
+
+**And it is deliberately not oversold.** FLT-S05 injects the same lie into *both*
+channels and is residual: the winding runs past 1500 C undetected, exactly as the
+single channel design did. Redundancy defeats independent failures and does
+nothing about common cause.
+
+## Three outcomes, not two
+
+A design can detect a fault and still fail to protect against it, so the catalog
+distinguishes **detected**, **detected but outside budget**, and **residual**.
+Collapsing the first two is how a coverage report ends up describing a drive that
+burns out.
+
+Requirement satisfaction is a **universal** claim: satisfied only when *every*
+fault challenging it is detected inside its budget. The weaker existential rule
+was in place first and scored SR-10 as satisfied while a sensor stuck at ambient
+let the winding reach 207 C.
 
 ## The cross domain comparison
 

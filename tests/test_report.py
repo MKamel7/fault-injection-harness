@@ -100,35 +100,42 @@ def test_report_names_every_residual_fault_with_its_rationale() -> None:
             )
 
 
-def test_every_requirement_now_has_at_least_one_detecting_fault() -> None:
-    """SR-10 used to be listed here as unmet. The second source closed it.
+def test_the_report_names_the_requirements_the_design_does_not_meet() -> None:
+    """Three of ten, and each for a different reason.
 
-    The section is still generated and still tested, by
-    test_report_flags_a_requirement_met_only_by_residual_faults below, because
-    the machinery has to keep working for the next gap. What changed is the
-    design, not the check.
+    SR-06 and SR-09 have undetectable challenges. SR-10 has one detected too
+    late, which is the case the third outcome exists to make visible: it would
+    have read as satisfied under a rule that only asked whether some fault
+    passed.
     """
     text, _ = build(CATALOG, run_all(CATALOG), REQUIREMENTS)
     section = text.split("## Requirements not satisfied by this design")[1]
-    assert "None: every requirement" in section, section
+    for req in ("SR-06", "SR-09", "SR-10"):
+        assert req in section, f"{req} should be listed as unmet"
+    assert "SR-01" not in section and "SR-05" not in section
 
 
-def test_report_flags_a_requirement_met_only_by_residual_faults() -> None:
-    """Synthetic, because the real design no longer has such a requirement.
+def test_one_unhandled_challenge_is_enough_to_leave_a_requirement_unmet() -> None:
+    """A requirement quantifies over every way it can be broken.
 
-    Written against fabricated inputs on purpose: the day a new residual-only
-    requirement appears is the day this path matters most, and that is the worst
-    possible time to discover it was never exercised.
+    So a requirement with nine passing faults and one residual is NOT satisfied.
+    Asserted with a synthetic pair, because the point is the rule rather than any
+    particular entry in the real catalog.
     """
     from fih.traceability import Requirement
 
-    fault = dataclasses.replace(BY_ID["FLT-S05"], challenges=("SR-99",))
-    req = Requirement(id="SR-99", text="a requirement nothing detects")
-    text, ok = build((fault,), {fault.id: run_all((fault,))[fault.id]}, (req,))
-    assert ok, "the residual fault should still meet its own verdict"
+    passing = dataclasses.replace(BY_ID["FLT-S02"], id="FLT-Y01", challenges=("SR-99",))
+    failing = dataclasses.replace(BY_ID["FLT-S05"], id="FLT-Y02", challenges=("SR-99",))
+    req = Requirement(id="SR-99", text="a requirement with one way to break it")
+
+    results = run_all((passing, failing))
+    text, ok = build((passing, failing), results, (req,))
+    assert ok, "both faults behaved as documented, so the verdicts should pass"
     section = text.split("## Requirements not satisfied by this design")[1]
-    assert "SR-99" in section
-    assert "does not currently meet them" in text
+    assert "SR-99" in section, (
+        "one undetected challenge must be enough to leave the requirement unmet, "
+        "even alongside a fault the design handles perfectly"
+    )
 
 
 # --- the protection comparison -----------------------------------------------
@@ -161,3 +168,57 @@ def test_protection_section_covers_every_communication_fault_and_only_those() ->
             f"{'appear' if fault.fault_class == 'communication' else 'not appear'} "
             f"in the protection comparison"
         )
+
+
+# --- the third outcome: detected, but too late -------------------------------
+def test_a_late_fault_that_comes_in_on_time_fails_its_verdict() -> None:
+    """Same rule as residual: the report must be wrong in neither direction.
+
+    If a documented-late detection starts meeting its budget, the design
+    improved and the rationale is stale, and that has to fail rather than pass
+    quietly.
+    """
+    fault = BY_ID["FLT-S01"]
+    assert fault.ftti_steps is not None
+    ok, why = verdict(fault, _result(detected_at_step=fault.ftti_steps))
+    assert not ok and "stale" in why
+
+
+def test_a_late_fault_passes_by_being_late() -> None:
+    fault = BY_ID["FLT-S01"]
+    assert fault.ftti_steps is not None
+    ok, why = verdict(fault, _result(detected_at_step=fault.ftti_steps + 5))
+    assert ok and "OUTSIDE" in why
+
+
+def test_a_requirement_met_only_by_a_late_fault_is_not_satisfied() -> None:
+    """SR-10 is the live example, and it is why the third outcome exists.
+
+    Counting a late detection as coverage is how a matrix ends up green over a
+    drive that burns out before it reacts.
+    """
+    from fih.traceability import matrix_markdown
+
+    text = matrix_markdown(CATALOG, REQUIREMENTS)
+    row = next(line for line in text.splitlines() if line.startswith("| SR-10 "))
+    assert "NOT satisfied" in row and "detected outside budget: FLT-S01" in row
+
+    report, _ = build(CATALOG, run_all(CATALOG), REQUIREMENTS)
+    section = report.split("## Requirements not satisfied by this design")[1]
+    assert "SR-10" in section
+
+
+def test_a_fully_satisfied_requirement_set_says_so() -> None:
+    """The clean case, kept alive by test because the real catalog is not clean.
+
+    Three of ten requirements are currently unmet, so this branch of the report
+    would otherwise never run until the day it mattered.
+    """
+    from fih.traceability import Requirement
+
+    fault = dataclasses.replace(BY_ID["FLT-S02"], id="FLT-Y03", challenges=("SR-99",))
+    req = Requirement(id="SR-99", text="a requirement with nothing left open")
+    text, ok = build((fault,), run_all((fault,)), (req,))
+    assert ok
+    section = text.split("## Requirements not satisfied by this design")[1]
+    assert "None: every fault" in section

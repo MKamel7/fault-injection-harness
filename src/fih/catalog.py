@@ -24,7 +24,10 @@ from typing import Any
 import yaml
 
 FAULT_CLASSES = {"sensor", "actuator", "communication", "timing"}
-EXPECTATIONS = {"detected", "residual"}
+#: Three outcomes, not two. A design can detect a fault and still not protect
+#: against it, and collapsing "detected in time" and "detected too late" into one
+#: word is how a coverage report ends up describing a drive that burns out.
+EXPECTATIONS = {"detected", "late", "residual"}
 SAFE_STATES = {"STO", "SS1", "none"}
 
 #: A condition that must already hold for the fault to mean anything. Named in
@@ -40,7 +43,7 @@ _REQUIRED = {"id", "title", "fault_class", "description", "injection",
 #: catalog that erases the gap it fixed loses the evidence that fixing it
 #: mattered, and a reviewer can no longer tell a design that was always safe from
 #: one that was made safe.
-_OPTIONAL = {"residual_rationale", "history", "precondition"}
+_OPTIONAL = {"residual_rationale", "late_rationale", "history", "precondition"}
 
 DEFAULT_CATALOG = Path(__file__).resolve().parents[2] / "catalog" / "faults.yaml"
 
@@ -64,12 +67,28 @@ class Fault:
     ftti_steps: int | None
     expectation: str
     residual_rationale: str | None = None
+    late_rationale: str | None = None
     history: str | None = None
     precondition: str | None = None
 
     @property
     def is_residual(self) -> bool:
         return self.expectation == "residual"
+
+    @property
+    def is_late(self) -> bool:
+        """Detected, but outside the budget. Documented, and still a failure."""
+        return self.expectation == "late"
+
+    @property
+    def protects(self) -> bool:
+        """Does this fault demonstrate the design actually protecting?
+
+        Only a fault detected INSIDE its budget does. Used by the traceability
+        matrix, so a requirement met only by late or residual faults is reported
+        as unsatisfied rather than as covered.
+        """
+        return self.expectation == "detected"
 
 
 def _fail(fault_id: str, message: str) -> None:
@@ -123,6 +142,14 @@ def _parse_fault(raw: dict[str, Any], seen: set[str]) -> Fault:
         if raw.get("residual_rationale"):
             _fail(fault_id, "residual_rationale is meaningless on a detected fault")
 
+    late = raw["expectation"] == "late"
+    if late and not raw.get("late_rationale"):
+        _fail(fault_id, "late faults must state why detection cannot be brought "
+                        "inside the budget, and what would bring it inside")
+    if not late and raw.get("late_rationale"):
+        _fail(fault_id, "late_rationale is meaningless unless the fault is "
+                        "expected to be detected outside its budget")
+
     return Fault(
         id=fault_id,
         title=str(raw["title"]),
@@ -136,6 +163,8 @@ def _parse_fault(raw: dict[str, Any], seen: set[str]) -> Fault:
         expectation=str(raw["expectation"]),
         residual_rationale=(" ".join(str(raw["residual_rationale"]).split())
                             if raw.get("residual_rationale") else None),
+        late_rationale=(" ".join(str(raw["late_rationale"]).split())
+                        if raw.get("late_rationale") else None),
         history=(" ".join(str(raw["history"]).split())
                  if raw.get("history") else None),
         precondition=raw.get("precondition"),
