@@ -8,10 +8,10 @@ A latent fault violates no safety goal by itself and is not detected, so nothing
 
 | Pair | Latent | Primary | Primary alone | Combined | Verdict |
 |---|---|---|---|---|---|
-| DP-01 | FLT-S07 | FLT-S01 | detected, 140 C | detected, 140 C | PASS: handled, as documented |
-| DP-02 | FLT-S07 | FLT-S08 | detected, 117 C | detected, 140 C | PASS: handled, as documented |
-| DP-03 | FLT-S07 | FLT-A01 | detected, 140 C | detected, 140 C | PASS: handled, as documented |
-| DP-04 | FLT-S07 | FLT-S03 | detected, 55 C | detected, 55 C | PASS: handled, as documented |
+| DP-01 | FLT-S07 | FLT-S01 | detected, 52 C | detected, 52 C | PASS: handled, as documented |
+| DP-02 | FLT-S07 | FLT-S08 | detected, 49 C | detected, 49 C | PASS: handled, as documented |
+| DP-03 | FLT-S07 | FLT-A01 | detected, 52 C | detected, 52 C | PASS: handled, as documented |
+| DP-04 | FLT-S07 | FLT-S03 | detected, 52 C | detected, 52 C | PASS: handled, as documented |
 
 **0 of 4 pairs violate a safety goal that neither member violates alone.**
 

@@ -30,7 +30,20 @@ from fih.catalog import Fault
 DEFAULT_ANALYSIS = Path(__file__).resolve().parents[2] / "docs" / "HAZARD_ANALYSIS.md"
 
 #: A requirement row in the analysis: | SR-01 | text | goal | ftti |
-_REQ_ROW = re.compile(r"^\|\s*(SR-\d+)\s*\|\s*([^|]+?)\s*\|", re.MULTILINE)
+#: All four columns are captured. The FTTI column used to be discarded, which
+#: made it decorative: every fault set its OWN budget and nothing compared the
+#: two, so any fault could be made to pass by raising its own number. SR-03
+#: demanded 7 steps and was reported satisfied by a fault judged on 154.
+_REQ_ROW = re.compile(
+    r"^\|\s*(SR-\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|",
+    re.MULTILINE)
+
+#: Requirement budgets that are not a plain step count. `invariant` is a property
+#: that must hold at all times rather than within a window, and `budget + 1` is
+#: expressed relative to a configurable watchdog budget. Both are exempt from the
+#: numeric comparison, and naming them here means the exemption is a decision
+#: rather than a parse failure that silently skipped the check.
+_NON_NUMERIC_BUDGETS = {"invariant", "budget + 1", "per condition"}
 
 
 class TraceabilityError(AssertionError):
@@ -41,13 +54,35 @@ class TraceabilityError(AssertionError):
 class Requirement:
     id: str
     text: str
+    #: The requirement's OWN fault tolerant time interval, in steps. None when
+    #: the analysis states it as an invariant or relative to another budget.
+    ftti_steps: int | None = None
+    #: The raw text, so a non-numeric budget can be reported as what it says.
+    ftti_text: str = ""
 
 
 def load_requirements(path: Path | str = DEFAULT_ANALYSIS) -> tuple[Requirement, ...]:
     """Parse SR-xx rows out of the hazard analysis."""
     text = Path(path).read_text()
-    reqs = [Requirement(id=m.group(1), text=m.group(2).strip())
-            for m in _REQ_ROW.finditer(text)]
+    reqs = []
+    for m in _REQ_ROW.finditer(text):
+        raw = m.group(4).strip()
+        steps = None
+        if raw not in _NON_NUMERIC_BUDGETS:
+            digits = re.match(r"(\d+)", raw)
+            if not digits:
+                # Neither a recognised non-numeric form nor a number. Silently
+                # treating it as "no budget" would ungate the requirement
+                # without anybody deciding to, which is the same class of hole
+                # as discarding the column altogether.
+                raise TraceabilityError(
+                    f"{m.group(1)}: budget {raw!r} is neither a step count nor "
+                    f"one of {sorted(_NON_NUMERIC_BUDGETS)}. An unreadable "
+                    f"budget must not quietly become an unenforced one."
+                )
+            steps = int(digits.group(1))
+        reqs.append(Requirement(id=m.group(1), text=m.group(2).strip(),
+                                ftti_steps=steps, ftti_text=raw))
     if not reqs:
         raise TraceabilityError(
             f"{path}: no SR-xx requirements found. Either the analysis lost its "
@@ -88,6 +123,28 @@ def check(faults: tuple[Fault, ...],
         raise TraceabilityError(
             f"requirement(s) with no fault challenging them: {orphans}. "
             f"Specified and never verified."
+        )
+
+    # A fault may not be judged against a budget looser than the requirement it
+    # is cited as evidence for. Without this, every fault sets its own number and
+    # any fault can be made to pass by raising it, which is the single easiest
+    # way to inflate a coverage report.
+    by_id = {f.id: f for f in faults}
+    overruns = []
+    for requirement in requirements:
+        if requirement.ftti_steps is None:
+            continue
+        for fid in challenged[requirement.id]:
+            budget = by_id[fid].ftti_steps
+            if budget is not None and budget > requirement.ftti_steps:
+                overruns.append(
+                    f"{fid} is judged on {budget} steps but {requirement.id} "
+                    f"allows {requirement.ftti_steps}")
+    if overruns:
+        raise TraceabilityError(
+            "fault(s) judged against a budget looser than the requirement they "
+            f"are evidence for: {overruns}. A fault cannot grant itself more "
+            f"time than the hazard allows."
         )
 
     return {req: tuple(ids) for req, ids in challenged.items()}

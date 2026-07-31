@@ -12,8 +12,9 @@ from __future__ import annotations
 import pytest
 from dut_sim.motor_controller import OVERHEAT_LIMIT_C
 
-from fih.campaign import run
+from fih.campaign import RUN_STEPS, run
 from fih.catalog import Fault, load_catalog
+from fih.injection.device import ActuatorFaultedController
 from fih.report import verdict
 from fih.traceability import load_requirements
 
@@ -153,3 +154,79 @@ def test_the_estimator_cannot_see_the_plant(results: dict) -> None:
     result = results["FLT-A03"]
     assert result.detected and result.reached_safe_state
     assert result.notes == "" or "sensor" not in result.notes
+
+
+def test_the_run_window_outlasts_the_hazard_it_is_budgeting() -> None:
+    """Otherwise "not detected" means "not detected inside a window somebody picked".
+
+    The slowest thermal hazard in this catalog takes over a thousand steps to
+    materialise, so a fixed window derived from the winding time constant cut
+    every degraded cooling run short before the hazard existed. The window is now
+    taken from the fault's own budget when that is longer.
+    """
+    slowest = max(CATALOG, key=lambda f: f.ftti_steps or 0)
+    assert slowest.ftti_steps is not None
+    assert slowest.ftti_steps > RUN_STEPS, (
+        "no catalogued budget exceeds the default window, so this property is "
+        "not being exercised"
+    )
+    assert run(slowest).detected, "the slowest hazard is cut short again"
+
+    # and an explicit window is still honoured, which is what makes the default
+    # overridable for a targeted investigation
+    assert not run(slowest, steps=5).detected
+
+
+# --- observations that must GATE, not merely be recorded ---------------------
+# Both of these were computed and then consumed by nothing, so two requirements
+# read green on evidence that would not have changed had the device violated
+# them. An independent review found it. These tests run the campaign against
+# deliberately non-conforming devices, which is the only way to prove a gate is
+# live rather than merely present.
+class _NoTelemetryInFault(ActuatorFaultedController):
+    def handle_command(self, line: str) -> str:
+        if line.strip().upper() == "GET_TEMP" and self.state == "FAULT":
+            return "ERR NO-TELEMETRY"
+        return super().handle_command(line)
+
+
+class _AcceptsCommandsInSafeState(ActuatorFaultedController):
+    def handle_command(self, line: str) -> str:
+        if line.strip().upper().startswith("SET_SPEED") and self.state == "FAULT":
+            return "OK ACCEPTED-WHILE-IN-STO"
+        return super().handle_command(line)
+
+
+def _run_against(device: type, fault_id: str):  # type: ignore[no-untyped-def]
+    import fih.campaign as campaign_module
+
+    original = campaign_module.ActuatorFaultedController
+    campaign_module.ActuatorFaultedController = device  # type: ignore[misc]
+    try:
+        return campaign_module.run(next(f for f in CATALOG if f.id == fault_id))
+    finally:
+        campaign_module.ActuatorFaultedController = original  # type: ignore[misc]
+
+
+def test_unreadable_telemetry_in_the_safe_state_fails_sr09() -> None:
+    """FLT-T05 used to manufacture its own detection.
+
+    The harness tripped the device itself, then wrote a latency of 1 out of thin
+    air, and the report rendered "detected at 1 of 1 steps" for a run in which
+    nothing detected anything. The one property SR-09 is actually about,
+    telemetry surviving in the safe state, was computed and read by nobody.
+    """
+    fault = next(f for f in CATALOG if f.id == "FLT-T05")
+    result = _run_against(_NoTelemetryInFault, "FLT-T05")
+    assert not result.telemetry_readable
+    ok, why = verdict(fault, result)
+    assert not ok and "not readable" in why
+
+
+def test_a_safe_state_that_accepts_commands_fails_sr07() -> None:
+    """FLT-T04's check wrote to a string that is rendered only for residual faults."""
+    fault = next(f for f in CATALOG if f.id == "FLT-T04")
+    result = _run_against(_AcceptsCommandsInSafeState, "FLT-T04")
+    assert result.safe_state_accepted_command
+    ok, why = verdict(fault, result)
+    assert not ok and "accepted a speed command" in why

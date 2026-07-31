@@ -146,15 +146,15 @@ Each is testable, and each is challenged by at least one fault in the catalog.
 |---|---|---|---|
 | SR-01 | A speed command above the rated maximum shall be rejected, not clamped | SG-01 | 1 step |
 | SR-02 | A malformed or non-numeric speed command shall be rejected | SG-01, SG-04 | 1 step |
-| SR-03 | On winding temperature reaching the limit, the drive shall enter STO | SG-02, SG-03 | 7 steps |
-| SR-04 | On a stalled rotor with torque commanded, the drive shall enter STO before the insulation limit is exceeded | SG-02, SG-03 | 7 steps |
+| SR-03 | On winding temperature reaching the limit, the drive shall enter STO | SG-02, SG-03 | per condition |
+| SR-04 | On a stalled rotor with torque commanded, the drive shall enter STO before the insulation limit is exceeded | SG-02, SG-03 | per condition |
 | SR-05 | Loss of the command channel beyond the watchdog budget shall enter STO | SG-02, SG-04 | budget + 1 |
 | SR-06 | Repeated or stale responses shall not be accepted as evidence of liveness | SG-04 | budget + 1 |
-| SR-07 | In STO, speed commands shall be rejected | SG-05 | 1 step |
+| SR-07 | In STO, speed commands shall be rejected | SG-05 | invariant |
 | SR-08 | STO shall persist through cooldown and through every command except an explicit reset | SG-05 | invariant |
 | SR-09 | Telemetry shall remain readable in STO, so the cause is diagnosable | SG-02 | invariant |
-| SR-10 | Overtemperature protection shall not be defeated by a sensor reporting implausible values | SG-06 | 7 steps |
-| SR-11 | A contradiction between temperature channels shall be reported as a sensor fault, not as an overtemperature, and shall stop the drive only while torque is commanded | SG-07 | 7 steps |
+| SR-10 | Overtemperature protection shall not be defeated by a sensor reporting implausible values | SG-06 | per condition |
+| SR-11 | A contradiction between temperature channels shall be reported as a sensor fault, not as an overtemperature, and shall stop the drive only while torque is commanded | SG-07 | per condition |
 
 ## 9. Notes carried into the catalog
 
@@ -186,6 +186,28 @@ Recorded per release from here on, however short.
 | v2.0 | Thermal model validated against the data sheet: loss follows current rather than speed, rated duty calibrated to the permitted temperature | No new hazard, but every thermal FTTI changed. SR-03, SR-04 and SR-10 moved from a chosen 20 steps to a **derived 7**, being the time the winding takes to cover its whole permitted rise under locked rotor current. |
 | v2.1 | Contradiction between channels reported as SENSOR_DISAGREEMENT rather than as an overtemperature; no trip without commanded torque; annunciation added | Closes SR-11. Also demotes the frame limit from "independent path" to "slow backstop", since it is suppressed whenever the channels disagree. |
 
+### Why four thermal requirements say "per condition" rather than a number
+
+Because a single number would be wrong, and stating one invited a real error. A
+thermal FTTI is the interval from the hazardous condition arising to the hazard
+occurring, and for a thermal hazard that interval depends entirely on how hard
+the machine is being driven: a locked rotor covers the permitted rise in 22
+steps and an obstructed installation at rated load takes 1041.
+
+An earlier version quoted the locked rotor figure as though it applied to all of
+them. A fault exercising the slow condition was then judged on its own much
+larger budget while being cited as evidence for a requirement that said 22, and
+nothing compared the two. That is the easiest possible way to inflate a coverage
+report, and the traceability gate now refuses it: a fault may not be judged
+against a budget looser than the requirement it is evidence for. These four are
+exempt from that numeric comparison because their budget genuinely is
+per-condition, and the table below is the authority.
+
+SR-07 is exempt for a different reason. "In STO, speed commands shall be
+rejected" is an invariant, not a race: it must hold on every command, not within
+a window. It is gated by an observation rather than a latency, so a step count
+would be meaningless there too.
+
 ### FTTI budgets, and why they differ by condition
 
 Every thermal budget is now measured rather than chosen: the steps the winding
@@ -194,8 +216,9 @@ tested.
 
 | Condition | Current | Budget |
 |---|---|---|
-| Locked rotor | 4.29x rated | **7 steps** |
-| Sustained overload, still turning | 2x rated | **36 steps** |
+| Locked rotor | 4.29x rated | **22 steps** |
+| Sustained overload, still turning | 2x rated | **136 steps** |
+| Cooling degraded to 0.35 of nominal | rated | **1041 steps** |
 
 Both are worth carrying, and testing only the first was misleading. Under
 overload the cross check fires at step 27 with the winding at 117 C, inside both

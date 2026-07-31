@@ -172,3 +172,54 @@ def test_a_requirement_broken_only_by_lateness_says_only_that() -> None:
                if line.startswith("| SR-99 "))
     assert "detected outside budget: FLT-Z98" in row
     assert "undetected" not in row
+
+
+def test_a_fault_cannot_grant_itself_more_time_than_its_requirement_allows() -> None:
+    """The coverage-inflation lever an independent review found.
+
+    The requirement's own FTTI column was parsed and discarded, so every fault
+    set its own budget and nothing compared the two. SR-03 demanded 7 steps and
+    was reported satisfied by a fault judged on 154. Any fault could be made to
+    pass by raising its own number.
+    """
+    faults = load_catalog()
+    reqs = load_requirements()
+    numeric = [r for r in reqs if r.ftti_steps is not None]
+    assert numeric, "no requirement carries a numeric budget, so nothing is gated"
+
+    target = numeric[0]
+    challenger = next(f for f in faults if target.id in f.challenges)
+    inflated = dataclasses.replace(challenger, ftti_steps=(target.ftti_steps or 0) + 500)
+
+    with pytest.raises(TraceabilityError, match="more time than the hazard allows"):
+        check(tuple(inflated if f.id == challenger.id else f for f in faults), reqs)
+
+
+def test_non_numeric_budgets_are_exempt_by_decision_not_by_parse_failure() -> None:
+    """`invariant` and `per condition` are real answers, not missing ones.
+
+    A thermal budget genuinely depends on how hard the machine is driven: a
+    locked rotor covers the permitted rise in 22 steps, an obstructed
+    installation at rated load takes 1041. Quoting one number for both is what
+    produced the inflation above. The exemption is named so it cannot be
+    confused with a row the regex simply failed to read.
+    """
+    from fih.traceability import _NON_NUMERIC_BUDGETS
+
+    reqs = load_requirements()
+    for req in reqs:
+        assert req.ftti_text, f"{req.id} has no budget text at all"
+        if req.ftti_steps is None:
+            assert (req.ftti_text in _NON_NUMERIC_BUDGETS
+                    or req.ftti_text == "per condition"), (
+                f"{req.id} budget {req.ftti_text!r} was not parsed and is not a "
+                f"recognised non-numeric form, so it is silently ungated"
+            )
+
+
+def test_an_unreadable_budget_is_rejected_rather_than_ungated(tmp_path: Path) -> None:
+    """Silently treating it as "no budget" is the same hole one level down."""
+    path = tmp_path / "HAZARD_ANALYSIS.md"
+    path.write_text("| SR-01 | text | SG-01 | whenever |\n")
+    with pytest.raises(TraceabilityError, match="neither a step count"):
+        load_requirements(path)

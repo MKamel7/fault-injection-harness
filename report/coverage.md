@@ -37,22 +37,22 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 | FLT-C06 | communication | SR-06 | FAULT | 10 | 11 | PASS: detected at 10 of 11 steps |
 | FLT-C07 | communication | SR-02 | RUNNING | 0 (rejected) | 1 | PASS: rejected on arrival (0 steps) |
 | FLT-C08 | communication | SR-06 | RUNNING | n/a | n/a | PASS: residual as documented |
-| FLT-S01 | sensor | SR-10 | FAULT | 7 | 7 | PASS: detected at 7 of 7 steps |
-| FLT-S02 | sensor | SR-03 | FAULT | 1 | 7 | PASS: detected at 1 of 7 steps |
-| FLT-S03 | sensor | SR-10 | FAULT | 1 | 7 | PASS: detected at 1 of 7 steps |
-| FLT-S08 | sensor | SR-10 | FAULT | 27 | 36 | PASS: detected at 27 of 36 steps |
-| FLT-S05 | sensor | SR-10 | FAULT | 7 | 7 | PASS: detected at 7 of 7 steps |
-| FLT-S06 | sensor | SR-11 | FAULT | 1 | 7 | PASS: detected at 1 of 7 steps |
+| FLT-S01 | sensor | SR-10 | FAULT | 2 | 22 | PASS: detected at 2 of 22 steps |
+| FLT-S02 | sensor | SR-03 | FAULT | 1 | 22 | PASS: detected at 1 of 22 steps |
+| FLT-S03 | sensor | SR-10 | FAULT | 2 | 22 | PASS: detected at 2 of 22 steps |
+| FLT-S08 | sensor | SR-10 | FAULT | 7 | 136 | PASS: detected at 7 of 136 steps |
+| FLT-S05 | sensor | SR-10 | FAULT | 2 | 22 | PASS: detected at 2 of 22 steps |
+| FLT-S06 | sensor | SR-11 | FAULT | 1 | 22 | PASS: detected at 1 of 22 steps |
 | FLT-S07 | sensor | SR-11 | RUNNING | n/a | n/a | PASS: residual as documented |
 | FLT-S04 | sensor | SR-09 | RUNNING | n/a | n/a | PASS: residual as documented |
-| FLT-A01 | actuator | SR-04 | FAULT | 7 | 7 | PASS: detected at 7 of 7 steps |
+| FLT-A01 | actuator | SR-04 | FAULT | 2 | 22 | PASS: detected at 2 of 22 steps |
 | FLT-A02 | actuator | SR-09 | RUNNING | n/a | n/a | PASS: residual as documented |
-| FLT-A03 | actuator | SR-03 | FAULT | 154 | 154 | PASS: detected at 154 of 154 steps |
+| FLT-A03 | actuator | SR-03 | FAULT | 770 | 1041 | PASS: detected at 770 of 1041 steps |
 | FLT-T01 | timing | SR-05 | FAULT | 10 | 11 | PASS: detected at 10 of 11 steps |
 | FLT-T02 | timing | SR-05, SR-08 | FAULT | 10 | 11 | PASS: detected at 10 of 11 steps |
-| FLT-T03 | timing | SR-08 | FAULT | 14 | 20 | PASS: detected at 14 of 20 steps |
-| FLT-T04 | timing | SR-07, SR-08 | FAULT | 7 | 20 | PASS: detected at 7 of 20 steps |
-| FLT-T05 | timing | SR-09 | FAULT | 1 | 1 | PASS: detected at 1 of 1 steps |
+| FLT-T03 | timing | SR-08 | FAULT | 3 | 20 | PASS: detected at 3 of 20 steps |
+| FLT-T04 | timing | SR-07, SR-08 | FAULT | 2 | 20 | PASS: detected at 2 of 20 steps |
+| FLT-T05 | timing | SR-09 | FAULT | 0 (rejected) | 1 | PASS: telemetry readable in the safe state |
 
 ## Residual faults
 

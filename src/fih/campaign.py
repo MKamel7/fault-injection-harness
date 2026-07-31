@@ -16,7 +16,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dut_sim.motor_controller import OVERHEAT_LIMIT_C, RATED_TORQUE_NM, THERMAL_TIME_STEPS
+from dut_sim.motor_controller import (
+    FRAME_TIME_STEPS,
+    OVERHEAT_LIMIT_C,
+    RATED_TORQUE_NM,
+)
 from testbench.driver import MotorControllerDriver, ProtocolError, SimTransport
 
 from fih.catalog import Fault
@@ -34,7 +38,7 @@ from fih.injection.transport import TRANSPORT_HOOKS, FaultyTransport
 #: Two full thermal time constants puts the slowest process in the item at 86%
 #: of its final value, so a thermal fault that is going to be missed has visibly
 #: been missed rather than merely being still in progress.
-RUN_STEPS = int(THERMAL_TIME_STEPS * 2)
+RUN_STEPS = int(FRAME_TIME_STEPS * 2)
 
 #: Watchdog budget armed for the liveness faults. Ten steps, so the 11 step FTTI
 #: in the catalog is budget plus one.
@@ -65,6 +69,9 @@ class RunResult:
     overheated_undetected: bool
     rejected_command: bool
     telemetry_readable: bool
+    #: Did the safe state accept a speed command while under sustained pressure?
+    #: Observed for FLT-T04 and GATED, which it previously was not.
+    safe_state_accepted_command: bool = False
     notes: str = ""
 
     @property
@@ -104,7 +111,7 @@ _BEHAVIOURAL_HOOKS = {
 }
 
 
-def run(fault: Fault, steps: int = RUN_STEPS,
+def run(fault: Fault, steps: int | None = None,
         latent: Fault | None = None) -> RunResult:
     """Inject a fault and observe the device for `steps` steps.
 
@@ -120,6 +127,13 @@ def run(fault: Fault, steps: int = RUN_STEPS,
     is the whole point: a latent fault is defined by having no effect until it
     is combined with something.
     """
+    # The run must outlast the hazard it is budgeting, or "not detected" quietly
+    # means "not detected inside a window somebody picked". The slowest thermal
+    # hazard in the catalog takes over a thousand steps, so the window is taken
+    # from the fault's own budget whenever that is longer than the default.
+    if steps is None:
+        steps = max(RUN_STEPS, (fault.ftti_steps or 0) * 2)
+
     dut = ActuatorFaultedController()
     tx = FaultyTransport(SimTransport(dut, steps_per_request=0))
     driver = MotorControllerDriver(tx)
@@ -131,6 +145,7 @@ def run(fault: Fault, steps: int = RUN_STEPS,
     rejected = False
     reset_attempted = False
     telemetry_readable = True
+    safe_state_accepted = False
     notes = ""
 
     # Commanding speed is itself part of the exposure: a fault that only shows
@@ -187,13 +202,13 @@ def run(fault: Fault, steps: int = RUN_STEPS,
 
         if fault.hook == "hammer_commands_in_fault" and dut.state == "FAULT":
             reply = dut.handle_command(f"SET_SPEED {COMMAND_RPM}")
-            if not reply.startswith("ERR"):    # pragma: no cover
-                # Only reachable if the DUT regresses and starts accepting
-                # commands in its safe state. Kept as a live check rather than
-                # deleted, and excluded from coverage rather than forced by a
-                # test, because a test that forced it would be asserting
-                # something about a mock instead of about the design.
-                notes = "safe state accepted a speed command under sustained pressure"
+            if not reply.startswith("ERR"):
+                # This used to write to `notes`, which is rendered only for
+                # residual faults, and FLT-T04 is not one. So the check computed
+                # and changed nothing: a device that accepted commands in its
+                # safe state still passed, and SR-07 read satisfied. It is now a
+                # recorded observation that the verdict gates on.
+                safe_state_accepted = True
 
         if (fault.hook == "reset_without_clearing" and dut.state == "FAULT"
                 and not reset_attempted):
@@ -233,9 +248,15 @@ def run(fault: Fault, steps: int = RUN_STEPS,
                  else "A LATE KICK LEFT THE SAFE STATE, the fault did not latch")
 
     if fault.hook == "read_telemetry_in_fault":
-        dut.trip_fault()
+        # An INVARIANT check, not a detection. The drive is put into its safe
+        # state deliberately, because that is the precondition for the question,
+        # and then telemetry is read. The previous version also wrote
+        # `detected_at = detected_at or 1`, manufacturing a latency out of a trip
+        # the harness had itself performed, so the report rendered "detected at 1
+        # of 1 steps" for a fault where nothing detected anything.
+        dut.trip_fault("TEST_PRECONDITION")
         telemetry_readable = dut.handle_command("GET_TEMP").startswith("OK")
-        detected_at = detected_at or 1
+        detected_at = 0
 
     overheated_undetected = (
         dut.true_temperature_c >= OVERHEAT_LIMIT_C and dut.state != "FAULT"
@@ -259,6 +280,7 @@ def run(fault: Fault, steps: int = RUN_STEPS,
         overheated_undetected=overheated_undetected,
         rejected_command=rejected,
         telemetry_readable=telemetry_readable,
+        safe_state_accepted_command=safe_state_accepted,
         notes=notes,
     )
 

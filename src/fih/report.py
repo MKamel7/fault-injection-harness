@@ -41,6 +41,18 @@ def verdict(fault: Fault, result: RunResult) -> tuple[bool, str]:
                            "recorded rationale is now stale")
         return True, "residual as documented"
 
+    # Observations that must GATE rather than merely be recorded. Both of these
+    # were computed and then consumed by nothing, so two requirements read green
+    # on evidence that would not have changed had the device violated them.
+    if fault.hook == "read_telemetry_in_fault":
+        if not result.telemetry_readable:
+            return False, ("telemetry was not readable in the safe state, so the "
+                           "cause of a trip is not diagnosable")
+        return True, "telemetry readable in the safe state"
+    if result.safe_state_accepted_command:
+        return False, ("the safe state accepted a speed command under sustained "
+                       "pressure")
+
     if not result.detected:
         return False, "not detected"
 

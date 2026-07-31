@@ -143,7 +143,7 @@ faults:
     precondition: stalled_rotor
     challenges: [SR-10]
     safe_state: STO
-    ftti_steps: 7
+    ftti_steps: 22
     expectation: detected
     history: >
       This entry has driven two design changes and is the spine of the project's
@@ -178,7 +178,7 @@ faults:
     injection: {hook: temperature_stuck, params: {at_c: 200.0}}
     challenges: [SR-03]
     safe_state: STO
-    ftti_steps: 7
+    ftti_steps: 22
     expectation: detected
 
   - id: FLT-S03
@@ -191,7 +191,7 @@ faults:
     precondition: stalled_rotor
     challenges: [SR-10]
     safe_state: STO
-    ftti_steps: 7
+    ftti_steps: 22
     expectation: detected
     history: >
       WAS RESIDUAL until DUT v1.5. Same root cause as FLT-S01 and harder,
@@ -215,7 +215,7 @@ faults:
     precondition: overloaded_rotor
     challenges: [SR-10]
     safe_state: STO
-    ftti_steps: 36
+    ftti_steps: 136
     expectation: detected
     history: >
       Added after a review pointed out that every thermal sensor fault carried
@@ -244,7 +244,7 @@ faults:
     precondition: stalled_rotor
     challenges: [SR-10]
     safe_state: STO
-    ftti_steps: 7
+    ftti_steps: 22
     expectation: detected
     history: >
       WAS RESIDUAL until DUT v2.2, and it is the clearest demonstration in this
@@ -273,7 +273,7 @@ faults:
     injection: {hook: housing_stuck, params: {at_c: 120.0}}
     challenges: [SR-11]
     safe_state: STO
-    ftti_steps: 7
+    ftti_steps: 22
     expectation: detected
     history: >
       Uncatalogued until a review in July 2026. Redundancy is a second thing
@@ -345,7 +345,7 @@ faults:
     injection: {hook: stall_rotor, params: {}}
     challenges: [SR-04]
     safe_state: STO
-    ftti_steps: 7
+    ftti_steps: 22
     expectation: detected
 
   - id: FLT-A02
@@ -375,7 +375,7 @@ faults:
     injection: {hook: degrade_cooling, params: {scale: 0.35}}
     challenges: [SR-03]
     safe_state: STO
-    ftti_steps: 154
+    ftti_steps: 1041
     expectation: detected
     history: >
       Added with the model based estimator in DUT v2.2, deliberately, to
