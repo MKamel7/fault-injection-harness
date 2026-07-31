@@ -409,11 +409,17 @@ protection, or any of the things that dominate real embedded failure.
 
 In the order a real project would do them:
 
-0. **An independent review**, by someone who did not write any of it, of the
-   hazard analysis first and the fault catalog second. It is listed at zero
-   because it is the only item here that addresses a structural weakness rather
-   than a scope one, it is the cheapest thing on the list, and until it happens
-   every other entry is an improvement to evidence nobody has checked.
+0. **An independent review**, by someone who did not write any of it. Still the
+   only item here that addresses a structural weakness rather than a scope one,
+   and still the cheapest. Until it happens every other entry is an improvement
+   to evidence nobody has checked.
+
+   **In progress.** `docs/REVIEW_BRIEF.md` is the brief handed to reviewers, and
+   the outcome will be recorded in `docs/REVIEW.md` with what was looked at and
+   what was found, including "nothing" where that is the answer. Note the level
+   honestly when it lands: a competent peer who did not write the work is real
+   independence and is **not** a qualified assessment, and the two should not be
+   described as if they were the same thing.
 1. ~~A second temperature source in the DUT~~ **done, and later superseded by a diverse third channel in DUT v3.0.** SR-10 moved
    from unsatisfied to satisfied for independent sensor failures, and FLT-S05
    was added to name the common cause case that remains. It was, as predicted,
