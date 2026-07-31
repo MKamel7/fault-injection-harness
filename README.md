@@ -139,5 +139,19 @@ ISO 26262 sense: that requires an FMEDA with component failure rates in FIT, and
 there are none here. Latencies are in **simulation steps**, never seconds,
 because the device's thermal time scale is deliberately compressed.
 
-`docs/SAFETY_ARGUMENT.md` section 5 lists the limitations in full, including the
-ones that should worry a reader most.
+**Nothing here is independently reviewed.** The device, the hazard analysis, the
+requirements, the fault catalog, the acceptance criteria and the tests all come
+from one author in one effort. Both ISO 26262 and IEC 61508 treat independence of
+assessment as a first order concern, scaled with ASIL or SIL, and for good
+reason: the author of a hazard analysis is the person least able to notice the
+hazard they did not think of. That gap does not close by writing more tests.
+
+The work is **well verified and essentially not validated**. Verified: the
+harness does what it claims, reproducibly, with the evidence regenerated and
+staleness-checked on every push. Not validated: the device is a model that has
+never been compared to a real drive, and its thermal time scale is deliberately
+compressed, so every latency is internally consistent and externally meaningless.
+
+`docs/SAFETY_ARGUMENT.md` sections 5 and 6 give the full account, including the
+four occasions where an expected result was revised after observing the actual
+one.

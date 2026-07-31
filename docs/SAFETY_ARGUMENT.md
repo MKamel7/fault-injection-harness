@@ -27,6 +27,7 @@ Specifically **not** claimed:
 | An ASIL | ASIL is assigned by a vehicle level HARA over severity, exposure and controllability. A bench simulation has no vehicle context, no driver, no operational situation. There is nothing to classify. |
 | Diagnostic coverage, SPFM, LFM | Those are FMEDA quantities and need component failure rates in FIT, from a source such as SN 29500 or IEC 62380, applied to a real bill of materials. This device has no components, so no rate exists to integrate. |
 | Conformance to any standard | Requires an assessor, an assessment, and the standard text. |
+| That this evidence is independently confirmed | Everything here was produced by one author in one effort, with no second party review. Both standards scale required independence with ASIL or SIL. See section 5. |
 | That the DUT is production code | It is a simulation, deliberately, so that faults can be injected at points a real drive would not expose. |
 
 What the report **does** compute is **detection coverage over the injected fault
@@ -174,7 +175,137 @@ forced the second source to be built, which is exactly what it was written to
 do. A safety case that silently absorbs good news would also silently absorb bad
 news.
 
-## 5. Limitations
+## 5. Verification, validation, and independence
+
+The single most useful question to ask about this project, and the one an
+assessor opens with. The two words are not synonyms and the honest answer is
+different for each.
+
+**Verification** asks whether the thing was built right, against its
+specification. **Validation** asks whether it was the right thing, in the real
+operating context. This project is **well verified and essentially not
+validated**, and no amount of additional testing changes the second half.
+
+### What is genuinely verified
+
+| Property | How it is established |
+|---|---|
+| The harness does what it claims | 128 tests, 100% statement and branch coverage, gated in CI |
+| Every requirement has evidence, every fault answers a requirement | Bidirectional gate that fails the build on a gap in either direction, and is itself tested by being deliberately broken |
+| Results are reproducible | No randomness in the campaign, asserted by test: same fault, identical result |
+| The published evidence matches the code | CI rebuilds the report and fails if the committed artifacts have gone stale |
+| A malformed catalog cannot inflate coverage | Strict loader, unknown fields and unknown hooks are hard errors, tested |
+
+That is a real verification story and it is the part that transfers.
+
+### What is not validated, and cannot be from here
+
+**The device is a model that has never been compared to a device.** Its
+parameters are grounded in a Siemens data sheet, which fixes the operating
+envelope; that is provenance, not validation. Nothing here has been run against a
+real drive, so nothing confirms the model behaves as the motor does.
+
+**The timing dimension is uncalibrated by construction.** The thermal time scale
+is deliberately compressed because a real winding thermal constant is minutes
+while the mechanical response is milliseconds. So every latency is in simulation
+steps, no step maps to a duration, and therefore **no FTTI in this project has
+been validated against a real time budget**. The timing results are internally
+consistent and externally meaningless.
+
+**The requirements have never been confirmed against an operating context.**
+There is no machine, no installation, no operator, no duty cycle. Safety
+requirements are only correct relative to a context, and this one has none.
+
+### Independence is zero, and that is structural
+
+The device under test, the hazard analysis, the safety requirements, the fault
+catalog, the acceptance criteria and the tests were all produced by **one author
+in one effort**. Nothing has been reviewed by a second party.
+
+Both standards treat this as a first order concern rather than a detail. ISO
+26262 defines confirmation measures, a confirmation review, a functional safety
+audit and a functional safety assessment, and scales the required *independence*
+of whoever performs them with ASIL. IEC 61508 handles the same problem through
+independent assessment scaled with SIL. The reason is not bureaucratic: the
+author of a hazard analysis is the person least able to notice the hazard they
+did not think of.
+
+This cannot be closed by writing more tests. It closes only when someone else
+reviews it.
+
+### The oracle was adjusted after seeing the results
+
+Worth stating plainly, because it is the methodological weakness a reviewer would
+find on their own. On four occasions the expected result was changed *after*
+observing the actual one:
+
+- FLT-T04's FTTI was raised from 1 step to 20, once the run showed the safe state
+  takes 2 steps to enter.
+- FLT-C07's declared safe state was changed to `none`, once the run showed the
+  drive is genuinely healthy and only the supervisor's view breaks.
+- FLT-S01 and FLT-S03 moved from residual to detected after the device gained a
+  second temperature source.
+- The headline 422 C was corrected to 409.6 C after the injection model was found
+  to understate cooling.
+
+Every one of those changes is documented with its reasoning, and each is
+defensible on the merits. The pattern is still a weakness. In a controlled
+process the expected result is baselined before the run, and a mismatch is
+resolved as either a defect or a **reviewed** specification change. Here the same
+person observed the mismatch, decided which of the two it was, and applied the
+change immediately. That the decisions look right is not evidence that the
+process was sound, and with no independent reviewer there is nothing to
+distinguish a correct reclassification from a comfortable one.
+
+### Completeness is asserted, not argued
+
+Traceability proves that every requirement has a test and every fault answers a
+requirement. It proves nothing about whether the **requirement set itself is
+complete**, and that is the gap it is most often mistaken for closing.
+
+There are six hazards. They were not derived by a documented systematic method:
+no HAZOP guide word sweep, no FMEA worksheet, no fault tree, no STPA control
+structure, and no review. Asked "how do you know you have not missed a hazard",
+the honest answer is that we do not.
+
+The same applies to the fault set. Twenty faults were chosen because they were
+considered interesting, not sampled from a defined fault space, so **the 16 of 20
+figure describes this catalog and estimates nothing**. There is no confidence
+interval on it and none could be computed without a sampling argument.
+
+### There is no acceptance criterion
+
+Nothing in this project states what would constitute enough. Real projects carry
+quantitative targets, diagnostic coverage, safe failure fraction, SPFM, LFM,
+PFH or PFD, and judge the evidence against them. This report **describes** the
+result and never declares it sufficient, because there is no validated threshold
+to declare it against.
+
+### The tools are not qualified
+
+ISO 26262 requires confidence in software tools to be established, from the
+tool's impact and the likelihood of detecting its malfunction. IEC 61508
+classifies offline support tools in a similar spirit. Neither has been done here
+for pytest, coverage.py, hypothesis, uv, or, most importantly, **for this harness
+itself**.
+
+The harness is the case that matters, because its malfunction is
+safety-relevant in a specific way: if it silently fails to inject a fault, it
+reports coverage that does not exist. Exactly one mitigation is in place, the
+loader raises on an unknown injection hook rather than skipping it, and that is
+a sensible design choice rather than a qualification argument.
+
+### So what is this evidence good for
+
+It is a credible demonstration of **method**: hazard derived faults, budgets
+judged rather than assumed, traceability enforced in both directions, gaps named
+instead of hidden, and a finding that forced a change to the device rather than
+to the test. That method is what transfers to a real project.
+
+It is not, and is nowhere claimed to be, evidence that a motor controller is
+safe.
+
+## 6. Limitations
 
 Ordered by how much they should worry a reader.
 
@@ -223,10 +354,15 @@ everywhere is more misleading than one that says where it is not.
 simulation. Nothing here says anything about a compiler, a scheduler, memory
 protection, or any of the things that dominate real embedded failure.
 
-## 6. What would make this stronger
+## 7. What would make this stronger
 
 In the order a real project would do them:
 
+0. **An independent review**, by someone who did not write any of it, of the
+   hazard analysis first and the fault catalog second. It is listed at zero
+   because it is the only item here that addresses a structural weakness rather
+   than a scope one, it is the cheapest thing on the list, and until it happens
+   every other entry is an improvement to evidence nobody has checked.
 1. ~~A second temperature source in the DUT~~ **done in DUT v1.5.** SR-10 moved
    from unsatisfied to satisfied for independent sensor failures, and FLT-S05
    was added to name the common cause case that remains. It was, as predicted,
