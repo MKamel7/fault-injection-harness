@@ -25,6 +25,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from fih import gate
 from fih.catalog import Fault
 
 DEFAULT_ANALYSIS = Path(__file__).resolve().parents[2] / "docs" / "HAZARD_ANALYSIS.md"
@@ -46,8 +47,12 @@ _REQ_ROW = re.compile(
 _NON_NUMERIC_BUDGETS = {"invariant", "budget + 1", "per condition"}
 
 
-class TraceabilityError(AssertionError):
-    """Raised on a gap in either direction. Never downgraded to a warning."""
+#: The gate's error, under this package's older name. An alias rather than a
+#: subclass on purpose: a gap raised by `fih.gate` and a gap raised by the
+#: loader here are the same kind of failure, and code catching one must catch
+#: the other. A subclass would let a caller catch `TraceabilityError` and
+#: silently miss everything the shared gate raises.
+TraceabilityError = gate.GateError
 
 
 @dataclass(frozen=True)
@@ -99,55 +104,25 @@ def load_requirements(path: Path | str = DEFAULT_ANALYSIS) -> tuple[Requirement,
 
 def check(faults: tuple[Fault, ...],
           requirements: tuple[Requirement, ...]) -> dict[str, tuple[str, ...]]:
-    """Return requirement id -> fault ids, or raise on a gap in either direction."""
-    known = {req.id for req in requirements}
-    challenged: dict[str, list[str]] = {req.id: [] for req in requirements}
+    """Return requirement id -> fault ids, or raise on a gap in either direction.
 
-    unknown: list[str] = []
-    for fault in faults:
-        for req in fault.challenges:
-            if req not in known:
-                unknown.append(f"{fault.id} -> {req}")
-            else:
-                challenged[req].append(fault.id)
+    The checking itself lives in `fih.gate` now. It had been written twice, here
+    and in the virtual production cell, and the two copies had already drifted
+    apart before a third safety argument needed the same thing. It now lives
+    somewhere neither project owns and all three import.
 
-    if unknown:
-        raise TraceabilityError(
-            "fault(s) reference requirements that do not exist in the hazard "
-            f"analysis: {unknown}. Usually a typo, which would otherwise count "
-            f"as coverage while verifying nothing."
-        )
-
-    orphans = sorted(req for req, ids in challenged.items() if not ids)
-    if orphans:
-        raise TraceabilityError(
-            f"requirement(s) with no fault challenging them: {orphans}. "
-            f"Specified and never verified."
-        )
-
-    # A fault may not be judged against a budget looser than the requirement it
-    # is cited as evidence for. Without this, every fault sets its own number and
-    # any fault can be made to pass by raising it, which is the single easiest
-    # way to inflate a coverage report.
-    by_id = {f.id: f for f in faults}
-    overruns = []
-    for requirement in requirements:
-        if requirement.ftti_steps is None:
-            continue
-        for fid in challenged[requirement.id]:
-            budget = by_id[fid].ftti_steps
-            if budget is not None and budget > requirement.ftti_steps:
-                overruns.append(
-                    f"{fid} is judged on {budget} steps but {requirement.id} "
-                    f"allows {requirement.ftti_steps}")
-    if overruns:
-        raise TraceabilityError(
-            "fault(s) judged against a budget looser than the requirement they "
-            f"are evidence for: {overruns}. A fault cannot grant itself more "
-            f"time than the hazard allows."
-        )
-
-    return {req: tuple(ids) for req, ids in challenged.items()}
+    What remains here is the translation, which is the part that is genuinely
+    about fault injection: requirements in this repository carry an FTTI in
+    steps, and `Fault` satisfies the gate's `Evidence` protocol through the
+    `claims` and `budget` aliases on it. More steps is a looser budget, which is
+    the gate's default reading, so no comparator is passed.
+    """
+    return gate.check(
+        tuple(gate.Requirement(id=r.id, text=r.text, budget=r.ftti_steps,
+                               budget_text=r.ftti_text)
+              for r in requirements),
+        faults,
+    )
 
 
 def matrix_markdown(faults: tuple[Fault, ...],

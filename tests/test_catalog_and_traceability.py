@@ -98,7 +98,7 @@ def test_duplicate_ids_are_rejected(tmp_path: Path) -> None:
 def test_gate_rejects_a_requirement_with_no_fault() -> None:
     faults = load_catalog()
     reqs = (*load_requirements(), Requirement(id="SR-99", text="never verified"))
-    with pytest.raises(TraceabilityError, match="no fault challenging"):
+    with pytest.raises(TraceabilityError, match="with no evidence"):
         check(faults, reqs)
 
 
@@ -191,7 +191,7 @@ def test_a_fault_cannot_grant_itself_more_time_than_its_requirement_allows() -> 
     challenger = next(f for f in faults if target.id in f.challenges)
     inflated = dataclasses.replace(challenger, ftti_steps=(target.ftti_steps or 0) + 500)
 
-    with pytest.raises(TraceabilityError, match="more time than the hazard allows"):
+    with pytest.raises(TraceabilityError, match="more room than the requirement allows"):
         check(tuple(inflated if f.id == challenger.id else f for f in faults), reqs)
 
 

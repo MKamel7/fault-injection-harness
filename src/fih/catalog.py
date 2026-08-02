@@ -71,6 +71,18 @@ class Fault:
     history: str | None = None
     precondition: str | None = None
 
+    #: `fih.gate.Evidence` names these two neutrally, because the same gate now
+    #: serves three different safety arguments and "challenges" / "ftti_steps"
+    #: only read well in this one. Aliases rather than renames: fault-injection
+    #: vocabulary is the right vocabulary to keep inside this package.
+    @property
+    def claims(self) -> tuple[str, ...]:
+        return self.challenges
+
+    @property
+    def budget(self) -> float | None:
+        return self.ftti_steps
+
     @property
     def is_residual(self) -> bool:
         return self.expectation == "residual"
