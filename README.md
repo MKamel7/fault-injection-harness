@@ -8,6 +8,14 @@ Communication faults are additionally run through a CRC, counter and timeout
 protection layer configured as **both AUTOSAR E2E and PROFIsafe**, and the two
 are compared on the same fault set.
 
+> **This models the mechanism, it does not implement either standard.** The CRC8
+> uses the SAE J1850 polynomial `0x1D`, which is correct for E2E Profile 1, and
+> the same 8-bit CRC is reused for the PROFIsafe configuration. Real PROFIsafe
+> uses a wider CRC and a 24-bit consecutive number over its F-Parameters. What
+> is being compared here is the behaviour of a CRC plus counter plus timeout
+> scheme under injected faults, not conformance to either specification. See
+> "What this is not" below.
+
 ```
 27 faults   23 detected in time   0 detected late   4 residual   5 catalogued pairs
 204 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
