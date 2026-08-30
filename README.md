@@ -18,7 +18,7 @@ are compared on the same fault set.
 
 ```
 27 faults   23 detected in time   0 detected late   4 residual   5 catalogued pairs
-204 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
+225 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
 3 of 11 safety requirements currently NOT met, each named with why
 ```
 
