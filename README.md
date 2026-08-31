@@ -195,6 +195,15 @@ temperature channel appeared, the thermal model was validated and corrected, and
 a third channel replaced the second. Each arrived as a deliberate repin with the
 evidence regenerated, rather than as a silent shift under a published report.
 
+## Roadmap
+
+- **Inject timing faults, not only value faults.** Jitter and clock drift, with their own FTTI budgets. The protection layer is CRC, counter and timeout; corruption exercises the CRC and repetition exercises the counter, but **nothing currently attacks the timeout on its own terms**, and timing is what defeats counter-and-timeout schemes in the field. Cheapest item here, biggest gap in the fault set.
+- **Implement PROFIsafe properly and delete the caveat.** The 8-bit CRC currently stands in for a scheme that really uses a wider CRC and a 24-bit consecutive number over its F-Parameters. It is the only asterisk on the headline claim.
+- **A fault tree linked to the campaign** — top event of uncontrolled torque or thermal damage, decomposed into sensor, communication, control and common-cause branches, with the injection campaign mapped onto the cut sets. The traceability chain proves every fault descends from a hazard; this would prove every *way the hazard can happen* has been attacked. Generate it from the catalog, like the chain.
+- **An explicitly educational FMEDA** — lambda SPF, RF and MPF, SPFM, LFM, diagnostic coverage, on synthetic or reference failure rates. **Keep the existing separation between injected-fault detection coverage and ISO 26262 diagnostic coverage**, which is the easiest thing here to get wrong while adding quantitative vocabulary.
+
+Not doing: **renaming this to a "Framework".** It breaks every link and claims more than "harness" does, which cuts against the accuracy discipline that makes this worth reading. And not chasing 100% detection: four faults are residual by design, each recording what would be needed to catch it.
+
 ## What is not claimed
 
 No conformance, no certification, no ASIL and no SIL. ISO 26262, IEC 61508,
