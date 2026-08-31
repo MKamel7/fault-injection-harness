@@ -344,7 +344,7 @@ def test_the_diagram_colours_a_declared_gap_differently_from_an_attacked_one() -
 
 
 def test_an_unattacked_single_point_is_drawn_in_the_alarming_colour() -> None:
-    from fih.fault_tree import Coverage, STYLE, render_svg
+    from fih.fault_tree import STYLE, Coverage, render_svg
 
     tree = FaultTree(Event("TOP", "t", "OR", (Event("BE-X", "x"),)))
     svg = render_svg(tree, Coverage(unattacked_single_points=("BE-X",)))
