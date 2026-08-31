@@ -18,7 +18,7 @@ are compared on the same fault set.
 
 ```
 29 faults   24 detected in time   0 detected late   5 residual   5 catalogued pairs
-288 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
+316 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
 3 of 11 safety requirements currently NOT met, each named with why
 ```
 
@@ -247,12 +247,67 @@ nobody has ever tested is an assumption wearing a number. That traffic runs in
 one direction only. Modes that claim nothing, like the watchdog that cannot be
 observed failing on its own, need no fault and are the honest latent case.
 
+## The fault tree, and what it found
+
+![the fault tree](docs/fault-tree.svg)
+
+The traceability chain proves every injected fault descends from a hazard:
+nothing is injected because it seemed interesting. It cannot prove the converse,
+that every **way the hazard can happen** has been attacked, because it only ever
+walks outwards from faults that already exist. A fault tree starts at the top
+event and decomposes downwards, so its minimal cut sets are a list the campaign
+can be held against. One artefact justifies what is there; this one looks for
+what is missing.
+
+| | |
+|---|---|
+| **10 basic events** | 10 minimal cut sets: **7 of order 1**, 3 of order 2 |
+| **6 of 7** single points of failure | challenged by an injected fault |
+| **1 of 7** | `BE-CCF-SUPPLY`, declared unattackable by this harness, with the reason |
+| **3 order-2 cut sets** | **none attacked by the dual-point campaign.** An open finding |
+
+### The result worth reading
+
+**`BE-CCF-SUPPLY` is an order-1 cut set.** Redundancy shows up in a fault tree as
+order-2 cut sets: two channels have to fail together, which is exactly what the
+2-of-3 majority over channels A, B and the estimator buys. A common cause, a
+shared supply rail or a shared thermal path, defeats all three at once and
+therefore sits at **order 1**. The majority vote buys nothing against it.
+
+That is why a redundant design can still have a single point of failure, and it
+is invisible in the traceability chain, which sees three healthy channels each
+with faults attacking them. Closing it is an architecture question, independent
+supplies and diverse sensing elements, not a test question, so it is declared
+rather than quietly absent.
+
+**The tree also found three double failures nobody has attacked**, all in the
+sensor branch: A with B, A with the estimator, and B with the estimator. The
+five catalogued pairs in `catalog/dual_point.yaml` all involve `FLT-S07` or
+`FLT-S09` and none of them covers these. That gap is recorded, not closed by
+inventing pairs, and a test holds it at exactly three so it cannot grow quietly.
+
+### A modelling error worth recording
+
+The first version of this tree made the top event `AND(heat is generated,
+protection fails)`. That is true as a sentence and useless as a tree: every cut
+set then contains a demand event, every order rises by one, and there are **no
+order-1 cut sets at all**. The single-point-of-failure gate passed while
+guarding nothing, which is precisely the shape of check this repository argues
+against everywhere else.
+
+The demand is a **condition**, not a fault, which is also how IEC 61508 and ISO
+26262 treat it: the operating condition under which a safety function is
+required, not a failure of it. The tree is now scoped to the protection function
+**on demand**, the demand is recorded separately so it stays visible, and order 1
+means what it is supposed to mean. A test asserts the demand events are not in
+the cut sets.
+
 ## Roadmap
 
 Timing faults landed on 31 August and the result is in the table above: **jitter is caught, drift is not.** FLT-T07 is now a documented residual, because a counter and timeout pair cannot see uniform latency growth. Every frame is individually perfect, the consecutive number is exactly one more than the last, and it arrives before the timeout; what is wrong is the relationship between the frame sequence and real elapsed time, and neither a checksum nor a counter carries any information about that. Closing it needs a timestamp in the protected frame, which is a change to what the frame carries rather than to the checks over it.
 
 - **Implement PROFIsafe properly and delete the caveat.** The 8-bit CRC currently stands in for a scheme that really uses a wider CRC and a 24-bit consecutive number over its F-Parameters. It is the only asterisk on the headline claim.
-- **A fault tree linked to the campaign** — top event of uncontrolled torque or thermal damage, decomposed into sensor, communication, control and common-cause branches, with the injection campaign mapped onto the cut sets. The traceability chain proves every fault descends from a hazard; this would prove every *way the hazard can happen* has been attacked. Generate it from the catalog, like the chain.
+- ~~**A fault tree linked to the campaign**~~ **Done, 1 September.** `catalog/fault_tree.yaml`, `src/fih/fault_tree.py`, `docs/fault-tree.svg`. See the section above. It found three double failures the pair campaign has never attacked, which is the point of having built it.
 - ~~**An explicitly educational FMEDA**~~ **Done, 1 September.** `catalog/fmeda.yaml` and `src/fih/fmeda.py`. See the section above. The separation held: diagnostic coverage is an INPUT to that file, never an output, and the only traffic permitted from the campaign is falsification.
 
 Not doing: **renaming this to a "Framework".** It breaks every link and claims more than "harness" does, which cuts against the accuracy discipline that makes this worth reading. And not chasing 100% detection: four faults are residual by design, each recording what would be needed to catch it.
