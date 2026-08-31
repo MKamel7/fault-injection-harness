@@ -39,6 +39,14 @@ _REQ_ROW = re.compile(
     r"^\|\s*(SR-\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|",
     re.MULTILINE)
 
+#: A safety goal row: | SG-01 | text | HAZ-01, HAZ-02 |
+_GOAL_ROW = re.compile(
+    r"^\|\s*(SG-\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|", re.MULTILINE)
+
+#: A hazard row: | HAZ-01 | text | consequence |
+_HAZARD_ROW = re.compile(
+    r"^\|\s*(HAZ-\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|", re.MULTILINE)
+
 #: Requirement budgets that are not a plain step count. `invariant` is a property
 #: that must hold at all times rather than within a window, and `budget + 1` is
 #: expressed relative to a configurable watchdog budget. Both are exempt from the
@@ -64,6 +72,60 @@ class Requirement:
     ftti_steps: int | None = None
     #: The raw text, so a non-numeric budget can be reported as what it says.
     ftti_text: str = ""
+    #: The safety goals this requirement decomposes. Parsed from the third
+    #: column, which used to be captured and thrown away, so the chain from a
+    #: hazard down to a fault could not be followed by anything but a human
+    #: reading three documents side by side.
+    goals: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Goal:
+    """A safety goal, and the hazards it exists to control."""
+
+    id: str
+    text: str
+    hazards: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Hazard:
+    """A hazard, and what it does when it happens."""
+
+    id: str
+    text: str
+    consequence: str = ""
+
+
+def _ids(cell: str, prefix: str) -> tuple[str, ...]:
+    return tuple(re.findall(rf"{prefix}-\d+", cell))
+
+
+def load_goals(path: Path | str = DEFAULT_ANALYSIS) -> tuple[Goal, ...]:
+    """Parse SG-xx rows out of the hazard analysis."""
+    text = Path(path).read_text()
+    goals = tuple(Goal(id=m.group(1), text=m.group(2).strip(),
+                       hazards=_ids(m.group(3), "HAZ"))
+                  for m in _GOAL_ROW.finditer(text))
+    if not goals:
+        raise TraceabilityError(
+            f"{path}: no SG-xx safety goals found. Without them a requirement "
+            f"cannot be shown to descend from a hazard, and the chain the whole "
+            f"argument rests on would be unverifiable.")
+    return goals
+
+
+def load_hazards(path: Path | str = DEFAULT_ANALYSIS) -> tuple[Hazard, ...]:
+    """Parse HAZ-xx rows out of the hazard analysis."""
+    text = Path(path).read_text()
+    hazards = tuple(Hazard(id=m.group(1), text=m.group(2).strip(),
+                           consequence=m.group(3).strip())
+                    for m in _HAZARD_ROW.finditer(text))
+    if not hazards:
+        raise TraceabilityError(
+            f"{path}: no HAZ-xx hazards found. Every safety goal would then "
+            f"descend from nothing.")
+    return hazards
 
 
 def load_requirements(path: Path | str = DEFAULT_ANALYSIS) -> tuple[Requirement, ...]:
@@ -87,7 +149,8 @@ def load_requirements(path: Path | str = DEFAULT_ANALYSIS) -> tuple[Requirement,
                 )
             steps = int(digits.group(1))
         reqs.append(Requirement(id=m.group(1), text=m.group(2).strip(),
-                                ftti_steps=steps, ftti_text=raw))
+                                ftti_steps=steps, ftti_text=raw,
+                                goals=_ids(m.group(3), "SG")))
     if not reqs:
         raise TraceabilityError(
             f"{path}: no SR-xx requirements found. Either the analysis lost its "

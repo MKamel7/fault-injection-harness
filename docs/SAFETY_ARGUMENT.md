@@ -58,7 +58,7 @@ falsified by running the campaign would not be worth making.
 | Latent plus primary pair campaign, with both members also run alone | `catalog/dual_point.yaml`, `report/dual_point.md` | A latent fault is defined by the difference, so the difference is what is reported |
 | Bidirectional traceability, build fails on a gap in either direction | `src/fih/traceability.py`, `report/traceability.md` | Every requirement is verified and every fault answers a requirement |
 | Coverage report with latency against each FTTI | `report/coverage.md` | Detection *in time*, not just detection |
-| 225 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
+| 239 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
 
 ### Why the traceability gate runs in both directions
 
@@ -206,7 +206,7 @@ validated**, and no amount of additional testing changes the second half.
 
 | Property | How it is established |
 |---|---|
-| The harness does what it claims | 225 tests, 100% statement and branch coverage, gated in CI |
+| The harness does what it claims | 239 tests, 100% statement and branch coverage, gated in CI |
 | Every requirement has evidence, every fault answers a requirement | Bidirectional gate that fails the build on a gap in either direction, and is itself tested by being deliberately broken |
 | Results are reproducible | No randomness in the campaign, asserted by test: same fault, identical result |
 | The published evidence matches the code | CI rebuilds the report and fails if the committed artifacts have gone stale |

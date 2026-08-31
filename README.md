@@ -18,9 +18,40 @@ are compared on the same fault set.
 
 ```
 27 faults   23 detected in time   0 detected late   4 residual   5 catalogued pairs
-225 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
+239 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
 3 of 11 safety requirements currently NOT met, each named with why
 ```
+
+## The whole argument, on one picture
+
+![hazard to evidence](docs/traceability-chain.svg)
+
+Hazard, safety goal, safety requirement, fault, and the FTTI budget each one is
+judged against. Until now that chain was spread across `docs/HAZARD_ANALYSIS.md`,
+`docs/SAFETY_ARGUMENT.md` and `report/traceability.md`, so seeing that any
+particular hazard is answered by anything at all meant reading three documents
+side by side. It is the intellectual contribution of the repository and it was
+the one thing not on a page.
+
+**It is generated, not drawn**, by `scripts/render_chain.py`, from the same
+loaders the campaign uses. Every arrow is a link one of those files asserts:
+a goal connects to a hazard because the goal's own row names it, and a fault
+connects to a requirement because the fault's `challenges` list names it.
+`scripts/check_docs.py` regenerates the SVG and compares, so a stale diagram
+fails the build. That check exists because this repository has already been
+bitten by the drawn-once version of the same problem: for four weeks this
+README claimed a test count 21 short of the real one while the docs gate failed
+on it, and a number in a README at least gets read. A picture is never diffed.
+
+(The gate caught this paragraph too, on its first draft, because quoting the
+old figure reads as claiming it. That is the check being right rather than
+annoying, so the sentence was reworded instead of the rule being loosened.)
+
+Faults are coloured by their **catalogued expectation**, not by the last run:
+green detected inside its FTTI, amber late, red residual. The picture states
+what the argument claims; `report/coverage.md` states whether the claim held.
+Colouring by live result would make the same committed diagram mean different
+things on different days.
 
 ## What this is for
 
