@@ -18,7 +18,7 @@ are compared on the same fault set.
 
 ```
 29 faults   24 detected in time   0 detected late   5 residual   5 catalogued pairs
-252 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
+288 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
 3 of 11 safety requirements currently NOT met, each named with why
 ```
 
@@ -195,13 +195,65 @@ temperature channel appeared, the thermal model was validated and corrected, and
 a third channel replaced the second. Each arrived as a deliberate repin with the
 evidence regenerated, rather than as a silent shift under a published report.
 
+## The FMEDA, and the wall next to it
+
+`catalog/fmeda.yaml` is an **educational** FMEDA over a **hypothetical** bill of
+materials. **Every failure rate in it is invented.** Nothing computed from it
+says anything about any real device, and no ASIL claim follows from it. It is
+here because being able to do the arithmetic is worth demonstrating, and because
+being honest about what a real one would need is worth demonstrating too.
+
+| | |
+|---|---|
+| **SPFM 93.8%** | against the ASIL D target of 99%, which it does **not** meet |
+| **LFM 87.9%** | against the ASIL D target of 90%, which it does **not** meet |
+| **16 modes** | 725 FIT total, of which 690 safety related and 35 safe |
+
+A synthetic analysis that happened to clear every target would be the least
+believable possible outcome, so the shipped numbers are reported as they fall
+and `test_fmeda.py` asserts they still miss.
+
+> **"Residual" means two different things in this repository, and the docs gate
+> caught them colliding.** In `catalog/faults.yaml` a *residual fault* is one the
+> design cannot catch at all, catalogued deliberately with the change that would
+> close it: there are **five**. In ISO 26262-5, a *residual fault* is the
+> uncovered fraction of a failure mode that DOES have a safety mechanism, which
+> is a rate rather than a count. They are not the same idea and this note is
+> here so nobody adds them together.
+
+**The largest single-point contributor is FM-CO-03, uniform latency growth with
+the frame sequence intact.** That is the same gap the campaign found from the
+other direction, by injecting FLT-T07 and watching a counter and timeout fail to
+see it. One route is qualitative and one is rate-based, they were built
+independently, and they agree. A test asserts they keep agreeing, because if the
+two ever diverge one of them is wrong and it matters which.
+
+### The distinction that is easy to lose
+
+    detection coverage    24 of 29 injected faults caught. MEASURED, and a
+                          statement about the contents of catalog/faults.yaml.
+    diagnostic coverage   the fraction of a failure mode's RATE a mechanism
+                          detects. ASSUMED, and an INPUT to the FMEDA.
+
+A campaign cannot produce a DC number: it samples a fault list somebody wrote,
+while DC integrates over a rate distribution. Letting "we caught 24 of 29"
+become "diagnostic coverage is 83%" is the kind of sentence that reaches a
+safety case and is not true.
+
+What the campaign legitimately does is **falsify**. Every mode claiming
+`diagnostic_coverage > 0` must name at least one injected fault that challenges
+its mechanism, and the build fails if it names none, because a coverage figure
+nobody has ever tested is an assumption wearing a number. That traffic runs in
+one direction only. Modes that claim nothing, like the watchdog that cannot be
+observed failing on its own, need no fault and are the honest latent case.
+
 ## Roadmap
 
 Timing faults landed on 31 August and the result is in the table above: **jitter is caught, drift is not.** FLT-T07 is now a documented residual, because a counter and timeout pair cannot see uniform latency growth. Every frame is individually perfect, the consecutive number is exactly one more than the last, and it arrives before the timeout; what is wrong is the relationship between the frame sequence and real elapsed time, and neither a checksum nor a counter carries any information about that. Closing it needs a timestamp in the protected frame, which is a change to what the frame carries rather than to the checks over it.
 
 - **Implement PROFIsafe properly and delete the caveat.** The 8-bit CRC currently stands in for a scheme that really uses a wider CRC and a 24-bit consecutive number over its F-Parameters. It is the only asterisk on the headline claim.
 - **A fault tree linked to the campaign** — top event of uncontrolled torque or thermal damage, decomposed into sensor, communication, control and common-cause branches, with the injection campaign mapped onto the cut sets. The traceability chain proves every fault descends from a hazard; this would prove every *way the hazard can happen* has been attacked. Generate it from the catalog, like the chain.
-- **An explicitly educational FMEDA** — lambda SPF, RF and MPF, SPFM, LFM, diagnostic coverage, on synthetic or reference failure rates. **Keep the existing separation between injected-fault detection coverage and ISO 26262 diagnostic coverage**, which is the easiest thing here to get wrong while adding quantitative vocabulary.
+- ~~**An explicitly educational FMEDA**~~ **Done, 1 September.** `catalog/fmeda.yaml` and `src/fih/fmeda.py`. See the section above. The separation held: diagnostic coverage is an INPUT to that file, never an output, and the only traffic permitted from the campaign is falsification.
 
 Not doing: **renaming this to a "Framework".** It breaks every link and claims more than "harness" does, which cuts against the accuracy discipline that makes this worth reading. And not chasing 100% detection: four faults are residual by design, each recording what would be needed to catch it.
 
@@ -215,7 +267,9 @@ to* their concepts.
 The figure computed here is **detection coverage over the injected fault set**,
 which is a statement about this catalog. It is **not** diagnostic coverage in the
 ISO 26262 sense: that requires an FMEDA with component failure rates in FIT, and
-there are none here. Latencies are in **simulation steps**, never seconds,
+there are none for this design. `catalog/fmeda.yaml` computes the ISO 26262-5
+metrics over a **hypothetical bill of materials with invented rates**, which
+demonstrates the arithmetic and describes nothing real. Latencies are in **simulation steps**, never seconds,
 because the device's thermal time scale is deliberately compressed.
 
 **It has been independently reviewed, and not independently assessed.**
