@@ -10,11 +10,11 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 
 ## Summary
 
-- Faults injected: **27**
-- Detected within budget: **23**
+- Faults injected: **29**
+- Detected within budget: **24**
 - Detected but OUTSIDE budget: **0**
-- Known residual: **4**
-- Verdicts met: **27 / 27**
+- Known residual: **5**
+- Verdicts met: **29 / 29**
 
 ## By fault class
 
@@ -23,7 +23,7 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 | actuator | 4 | 3 | 0 | 1 |
 | communication | 8 | 7 | 0 | 1 |
 | sensor | 10 | 8 | 0 | 2 |
-| timing | 5 | 5 | 0 | 0 |
+| timing | 7 | 6 | 0 | 1 |
 
 ## Detection and latency
 
@@ -56,6 +56,8 @@ All latencies are in **simulation steps**. The device advances in discrete steps
 | FLT-T03 | timing | SR-08 | FAULT | 4 | 20 | PASS: detected at 4 of 20 steps |
 | FLT-T04 | timing | SR-07, SR-08 | FAULT | 2 | 20 | PASS: detected at 2 of 20 steps |
 | FLT-T05 | timing | SR-09 | FAULT | 0 (rejected) | 1 | PASS: telemetry readable in the safe state |
+| FLT-T06 | timing | SR-06 | RUNNING | 0 (rejected) | 1 | PASS: rejected on arrival (0 steps) |
+| FLT-T07 | timing | SR-06 | RUNNING | n/a | n/a | PASS: residual as documented |
 
 ## Residual faults
 
@@ -88,6 +90,13 @@ Catalogued deliberately. A campaign reporting complete detection would not be cr
 - **Challenges:** SR-09
 - **Observed:** undetected, as documented
 - **Why it cannot be closed here:** Loss of torque is silent without current sensing or a load side measurement, neither of which this item has. Closing it needs current feedback compared against the commanded operating point.
+
+### FLT-T07: Far end clock running fast, lateness accumulating
+
+- **Class:** timing
+- **Challenges:** SR-06
+- **Observed:** undetected, as documented
+- **Why it cannot be closed here:** MEASURED, NOT ASSUMED: this was catalogued as detected, the campaign ran, and it was not detected. The entry now records what the design actually does. A counter and timeout pair cannot see uniform latency growth, and the reason is structural rather than a tuning mistake. Every frame the receiver gets is individually perfect: the checksum is right, the consecutive number is exactly one more than the last, and it arrives before the timeout expires. Nothing is wrong with any frame. What is wrong is the RELATIONSHIP between the frame sequence and real elapsed time, and neither a checksum nor a counter carries any information about that. A timeout counted in exchanges cannot notice that the exchanges themselves are getting slower. This is why FLT-T06 is caught and this is not. Jitter eventually produces one exchange outside the budget, which a step counted timeout can see. Drift never produces a late frame at all; it produces a link that is progressively further behind while looking healthy at every instant. Closing it needs an absolute time reference in the protected frame: a timestamp checked against the receiver's own clock, which is what PROFIsafe's F_WD_Time is measured against on real hardware and what this step based simulation has no equivalent of. That is a change to what the frame carries, not a change to the checks over it, so it is recorded here rather than fixed by tightening a threshold.
 
 ## Requirements not satisfied by this design
 

@@ -13,7 +13,7 @@ Both directions are enforced and the build fails on a gap in either: a requireme
 | SR-03 | FLT-S02, FLT-A03 | satisfied |
 | SR-04 | FLT-A04, FLT-A01 | satisfied |
 | SR-05 | FLT-C03, FLT-T01, FLT-T02 | satisfied |
-| SR-06 | FLT-C04, FLT-C06, FLT-C08 | **NOT satisfied**, undetected: FLT-C08 |
+| SR-06 | FLT-C04, FLT-C06, FLT-C08, FLT-T06, FLT-T07 | **NOT satisfied**, undetected: FLT-C08, FLT-T07 |
 | SR-07 | FLT-T04 | satisfied |
 | SR-08 | FLT-T02, FLT-T03, FLT-T04 | satisfied |
 | SR-09 | FLT-S04, FLT-A02, FLT-T05 | **NOT satisfied**, undetected: FLT-S04, FLT-A02 |
@@ -49,3 +49,5 @@ Both directions are enforced and the build fails on a gap in either: a requireme
 | FLT-T03 | timing | SR-08 | detected |
 | FLT-T04 | timing | SR-07, SR-08 | detected |
 | FLT-T05 | timing | SR-09 | detected |
+| FLT-T06 | timing | SR-06 | detected |
+| FLT-T07 | timing | SR-06 | residual |

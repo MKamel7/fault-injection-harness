@@ -17,8 +17,8 @@ are compared on the same fault set.
 > "What this is not" below.
 
 ```
-27 faults   23 detected in time   0 detected late   4 residual   5 catalogued pairs
-239 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
+29 faults   24 detected in time   0 detected late   5 residual   5 catalogued pairs
+252 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
 3 of 11 safety requirements currently NOT met, each named with why
 ```
 
@@ -71,7 +71,7 @@ build.
 report judges latency against it. Noticing a fault after the hazard has occurred
 is not a safety mechanism.
 
-**The gaps are named.** Four of the twenty seven faults are residual: the design cannot
+**The gaps are named.** Five of the twenty nine faults are residual: the design cannot
 detect them. Each one records what design change would be needed, and one of them
 exists specifically to stop a fix being oversold. A campaign reporting complete
 detection would not be credible.
@@ -170,7 +170,7 @@ side by side.
 docs/HAZARD_ANALYSIS.md      8 hazards, 7 safety goals, 11 safety requirements with FTTI budgets
 docs/SAFETY_ARGUMENT.md      claim, evidence, and at length what is NOT claimed
 docs/STANDARDS_MAPPING.md    one requirement through the automotive and industrial stacks
-catalog/faults.yaml          the 27 faults, as reviewable data rather than code
+catalog/faults.yaml          the 29 faults, as reviewable data rather than code
 src/fih/campaign.py          one fault per run, deterministic, records what the device did
 src/fih/report.py            judges those runs against the budgets
 src/fih/traceability.py      bidirectional gate; fails the build on a gap either way
@@ -197,7 +197,8 @@ evidence regenerated, rather than as a silent shift under a published report.
 
 ## Roadmap
 
-- **Inject timing faults, not only value faults.** Jitter and clock drift, with their own FTTI budgets. The protection layer is CRC, counter and timeout; corruption exercises the CRC and repetition exercises the counter, but **nothing currently attacks the timeout on its own terms**, and timing is what defeats counter-and-timeout schemes in the field. Cheapest item here, biggest gap in the fault set.
+Timing faults landed on 31 August and the result is in the table above: **jitter is caught, drift is not.** FLT-T07 is now a documented residual, because a counter and timeout pair cannot see uniform latency growth. Every frame is individually perfect, the consecutive number is exactly one more than the last, and it arrives before the timeout; what is wrong is the relationship between the frame sequence and real elapsed time, and neither a checksum nor a counter carries any information about that. Closing it needs a timestamp in the protected frame, which is a change to what the frame carries rather than to the checks over it.
+
 - **Implement PROFIsafe properly and delete the caveat.** The 8-bit CRC currently stands in for a scheme that really uses a wider CRC and a 24-bit consecutive number over its F-Parameters. It is the only asterisk on the headline claim.
 - **A fault tree linked to the campaign** — top event of uncontrolled torque or thermal damage, decomposed into sensor, communication, control and common-cause branches, with the injection campaign mapped onto the cut sets. The traceability chain proves every fault descends from a hazard; this would prove every *way the hazard can happen* has been attacked. Generate it from the catalog, like the chain.
 - **An explicitly educational FMEDA** — lambda SPF, RF and MPF, SPFM, LFM, diagnostic coverage, on synthetic or reference failure rates. **Keep the existing separation between injected-fault detection coverage and ISO 26262 diagnostic coverage**, which is the easiest thing here to get wrong while adding quantitative vocabulary.
