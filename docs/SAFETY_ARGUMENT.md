@@ -25,13 +25,13 @@ Specifically **not** claimed:
 | Not claimed | Why not, and what it would take |
 |---|---|
 | An ASIL | ASIL is assigned by a vehicle level HARA over severity, exposure and controllability. A bench simulation has no vehicle context, no driver, no operational situation. There is nothing to classify. |
-| Diagnostic coverage, SPFM, LFM | Those are FMEDA quantities and need component failure rates in FIT, from a source such as SN 29500 or IEC 62380, applied to a real bill of materials. This device has no components, so no rate exists to integrate. |
+| Diagnostic coverage, SPFM, LFM **for this device** | Those are FMEDA quantities and need component failure rates in FIT, from a source such as SN 29500 or IEC 62380, applied to a real bill of materials. This device has no components, so no rate exists to integrate. `catalog/fmeda.yaml` computes them over a **hypothetical BOM with invented rates**, which demonstrates the arithmetic and says nothing about anything real. |
 | Conformance to any standard | Requires an assessor, an assessment, and the standard text. |
 | That this evidence is independently ASSESSED | It has been independently REVIEWED, and `docs/REVIEW.md` records by whom and what they found. An assessment is a judgement made by an assessor against a standard, and no such person has looked at this. |
 | That the DUT is production code | It is a simulation, deliberately, so that faults can be injected at points a real drive would not expose. |
 
 What the report **does** compute is **detection coverage over the injected fault
-set**: of the 27 faults in this catalog, how many the design detects, how many
+set**: of the 29 faults in this catalog, how many the design detects, how many
 it detects in time, and after how many steps. That is a statement about this catalog and nothing wider. The two
 get conflated constantly and the distinction is the first thing an assessor
 checks.
@@ -58,7 +58,7 @@ falsified by running the campaign would not be worth making.
 | Latent plus primary pair campaign, with both members also run alone | `catalog/dual_point.yaml`, `report/dual_point.md` | A latent fault is defined by the difference, so the difference is what is reported |
 | Bidirectional traceability, build fails on a gap in either direction | `src/fih/traceability.py`, `report/traceability.md` | Every requirement is verified and every fault answers a requirement |
 | Coverage report with latency against each FTTI | `report/coverage.md` | Detection *in time*, not just detection |
-| 204 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
+| 323 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
 
 ### Why the traceability gate runs in both directions
 
@@ -206,7 +206,7 @@ validated**, and no amount of additional testing changes the second half.
 
 | Property | How it is established |
 |---|---|
-| The harness does what it claims | 204 tests, 100% statement and branch coverage, gated in CI |
+| The harness does what it claims | 323 tests, 100% statement and branch coverage, gated in CI |
 | Every requirement has evidence, every fault answers a requirement | Bidirectional gate that fails the build on a gap in either direction, and is itself tested by being deliberately broken |
 | Results are reproducible | No randomness in the campaign, asserted by test: same fault, identical result |
 | The published evidence matches the code | CI rebuilds the report and fails if the committed artifacts have gone stale |

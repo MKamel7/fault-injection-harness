@@ -40,10 +40,18 @@ read into this document:
   item to be placed in a defined vehicle and operational situation.
 - **No compliance is claimed**, to ISO 26262, IEC 61508 or IEC 61800-5-2. The
   vocabulary and method are used; the standards are not worked from.
-- **This is not an FMEDA.** There are no component failure rates, so no
-  quantitative diagnostic coverage, SPFM or LFM follows from it. What the
-  campaign later reports is **detection coverage over the injected fault set**,
-  which is a different and weaker claim, deliberately named as such.
+- **This is not an FMEDA, and nothing quantitative follows from it.** There are
+  no component failure rates here, so no diagnostic coverage, SPFM or LFM
+  follows FROM THIS DOCUMENT. What the campaign later reports is **detection
+  coverage over the injected fault set**, which is a different and weaker claim,
+  deliberately named as such.
+- **There is now a separate, explicitly synthetic FMEDA** at
+  `catalog/fmeda.yaml`, over a hypothetical bill of materials with **invented**
+  failure rates. It demonstrates the method and licenses no claim about this
+  device. It does not change the sentence above: its rates come from nowhere,
+  and a real FMEDA would need SN 29500 or IEC 62380 data against real parts.
+  The two artefacts are deliberately kept apart, and the campaign is **not**
+  permitted to supply a diagnostic coverage figure to it.
 
 ## 3. Operational situation
 

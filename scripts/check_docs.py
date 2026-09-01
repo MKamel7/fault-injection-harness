@@ -18,8 +18,31 @@ import sys
 from pathlib import Path
 
 from fih.catalog import load_catalog
+from fih.chain import build_chain, render_svg
 from fih.dual_point import load_pairs
-from fih.traceability import load_requirements
+from fih.fault_tree import coverage as tree_coverage
+from fih.fault_tree import load_tree
+from fih.fault_tree import render_svg as render_tree_svg
+from fih.traceability import (
+    load_goals,
+    load_hazards,
+    load_requirements,
+)
+
+
+def render_chain() -> str:
+    """The chain diagram as it should be, for comparison with the committed one."""
+    return render_svg(build_chain(load_hazards(), load_goals(),
+                                  load_requirements(), load_catalog()))
+
+
+def render_tree() -> str:
+    """The fault tree diagram as it should be, for the same comparison."""
+    tree = load_tree()
+    cover = tree_coverage(tree, {f.id for f in load_catalog()},
+                          {frozenset((p.latent, p.primary))
+                           for p in load_pairs()})
+    return render_tree_svg(tree, cover)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -134,13 +157,38 @@ def main() -> int:
                     problems.append(f"{name}: says {count} {phrase}, there are "
                                     f"{expected}")
 
+    # The chain diagram is generated, committed, and therefore capable of going
+    # stale. A number in a README at least gets read; a picture is never diffed,
+    # so a diagram that quietly stopped matching the catalog would keep looking
+    # authoritative indefinitely. Regenerating and comparing is the only version
+    # of this check worth having.
+    chain_svg = ROOT / "docs" / "traceability-chain.svg"
+    if not chain_svg.exists():
+        problems.append(f"{chain_svg.name} is missing; run "
+                        f"scripts/render_chain.py")
+    elif chain_svg.read_text(encoding="utf-8") != render_chain():
+        problems.append(f"{chain_svg.name} is out of date with the catalog or "
+                        f"the hazard analysis; run scripts/render_chain.py")
+
+    # Same argument for the fault tree, which additionally colours each basic
+    # event by whether the campaign attacks it. A stale one would show a single
+    # point of failure as covered after the fault covering it was removed.
+    tree_svg = ROOT / "docs" / "fault-tree.svg"
+    if not tree_svg.exists():
+        problems.append(f"{tree_svg.name} is missing; run "
+                        f"scripts/render_tree.py")
+    elif tree_svg.read_text(encoding="utf-8") != render_tree():
+        problems.append(f"{tree_svg.name} is out of date with the fault tree "
+                        f"or the catalog; run scripts/render_tree.py")
+
     if problems:
         print("Documentation contradicts the code:")
         for problem in sorted(set(problems)):
             print(f"  {problem}")
         return 1
 
-    print(f"docs consistent: {facts | counted}, DUT {dut}")
+    print(f"docs consistent: {facts | counted}, DUT {dut}, "
+          f"chain and fault-tree diagrams current")
     return 0
 
 

@@ -527,3 +527,60 @@ faults:
     safe_state: STO
     ftti_steps: 1
     expectation: detected
+
+  - id: FLT-T06
+    title: Reply latency jitters instead of holding a fixed delay
+    fault_class: timing
+    description: >
+      Replies arrive after a delay that VARIES per exchange rather than a fixed
+      one, so most are comfortably inside the timeout and a few are not. This is
+      the fault FLT-C07 cannot express: a fixed delay is either always inside
+      the budget or always outside it, so a timeout tuned once catches it or
+      never does. Jitter is what defeats a scheme validated on the mean, and it
+      is the reason an FTTI has to be argued from the worst case.
+    injection: {hook: jitter_response, params: {max_steps: 14, seed: 7}}
+    challenges: [SR-06]
+    safe_state: none
+    ftti_steps: 1
+    expectation: detected
+
+  - id: FLT-T07
+    title: Far end clock running fast, lateness accumulating
+    fault_class: timing
+    description: >
+      One extra step of latency every four exchanges. No single reply is late
+      enough to look anomalous, and nothing is wrong when the link is measured
+      one frame at a time; the lateness accumulates instead. The counter and
+      timeout pair is judged on whether it notices a link that is degrading
+      rather than broken.
+    injection: {hook: drift_response_clock, params: {every: 4}}
+    challenges: [SR-06]
+    safe_state: none
+    ftti_steps: null
+    expectation: residual
+    residual_rationale: >
+      MEASURED, NOT ASSUMED: this was catalogued as detected, the campaign ran,
+      and it was not detected. The entry now records what the design actually
+      does.
+
+      A counter and timeout pair cannot see uniform latency growth, and the
+      reason is structural rather than a tuning mistake. Every frame the
+      receiver gets is individually perfect: the checksum is right, the
+      consecutive number is exactly one more than the last, and it arrives
+      before the timeout expires. Nothing is wrong with any frame. What is wrong
+      is the RELATIONSHIP between the frame sequence and real elapsed time, and
+      neither a checksum nor a counter carries any information about that. A
+      timeout counted in exchanges cannot notice that the exchanges themselves
+      are getting slower.
+
+      This is why FLT-T06 is caught and this is not. Jitter eventually produces
+      one exchange outside the budget, which a step counted timeout can see.
+      Drift never produces a late frame at all; it produces a link that is
+      progressively further behind while looking healthy at every instant.
+
+      Closing it needs an absolute time reference in the protected frame: a
+      timestamp checked against the receiver's own clock, which is what
+      PROFIsafe's F_WD_Time is measured against on real hardware and what this
+      step based simulation has no equivalent of. That is a change to what the
+      frame carries, not a change to the checks over it, so it is recorded here
+      rather than fixed by tightening a threshold.

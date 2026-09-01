@@ -96,7 +96,12 @@ You are not restricted to the above. If something looks off, it probably is.
 - A three fault combination (mild cooling degradation plus a lying winding sensor
   plus a dead frame sensor) defeats the design. The harness only injects pairs,
   so this is documented rather than tested.
-- No FMEDA, so no diagnostic coverage, SPFM or LFM figures.
+- No FMEDA over anything real, so no diagnostic coverage, SPFM or LFM figures
+  for this device. `catalog/fmeda.yaml` is an educational one over a
+  hypothetical BOM with invented rates. **Worth a reviewer's attention: check
+  that it has not been allowed to launder the campaign's detection coverage
+  into a diagnostic coverage claim.** The wall is `untested_coverage_claims()`
+  plus the tests around it, and it runs in one direction only.
 - The tools, including this harness, are not qualified.
 
 ## Running it, if you want to

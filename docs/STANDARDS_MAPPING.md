@@ -207,8 +207,12 @@ assumption rather than a control.
   states what would be needed.
 - **Neither protection standard is implemented.** The shared skeleton is, with
   the real CRC widths and counter widths noted rather than reproduced.
-- **No hardware architectural metrics.** SPFM, LFM and PMHF need an FMEDA over a
-  real bill of materials with FIT rates.
+- **No hardware architectural metrics for this device.** SPFM, LFM and PMHF need
+  an FMEDA over a real bill of materials with FIT rates. `catalog/fmeda.yaml`
+  carries an explicitly educational one over a hypothetical BOM with invented
+  rates: it exercises the method, and no number in it describes this design.
+  PMHF is still absent, since it needs an exposure time and a mission profile
+  that a bench simulation does not have.
 - **Single fault at a time.** Latent plus primary fault combinations, which is
   where single channel designs actually fail, are out of scope and named as a
   gap rather than omitted.

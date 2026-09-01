@@ -1,0 +1,259 @@
+# Educational FMEDA: a synthetic bill of materials with synthetic failure rates.
+#
+# ============================ READ THIS FIRST ================================
+# THE RATES BELOW ARE INVENTED. They are plausible in ORDER OF MAGNITUDE for the
+# kind of part named, and they are not taken from SN 29500, IEC 62380, a vendor
+# data sheet or any real part. Nothing computed from them says anything about
+# any real device, and no ASIL claim follows from them. This file exists to
+# demonstrate the METHOD and the ARITHMETIC of an FMEDA, which is a thing worth
+# being able to do, and to be honest that a defensible FMEDA needs rate data
+# this project does not have and cannot invent.
+#
+# WHY IT IS SAFE TO ADD THIS TO A REPOSITORY THAT SAYS "THIS IS NOT AN FMEDA".
+# It still is not. `docs/HAZARD_ANALYSIS.md` says there are no component failure
+# rates, so no quantitative diagnostic coverage, SPFM or LFM follows FROM THE
+# HAZARD ANALYSIS. That remains exactly true. What is here is a separate,
+# clearly labelled, synthetic exercise over a hypothetical BOM, and every report
+# it produces carries that label.
+#
+# ================== DIAGNOSTIC COVERAGE IS AN INPUT ==========================
+# The single easiest mistake available here, named in the roadmap as the thing
+# to get wrong: treating the injection campaign's DETECTION COVERAGE as ISO
+# 26262 DIAGNOSTIC COVERAGE. They are different quantities.
+#
+#   detection coverage   caught 24 of 29 faults somebody chose to inject.
+#                        A statement about THIS CATALOG. Measured.
+#   diagnostic coverage  the fraction of a failure mode's RATE that a safety
+#                        mechanism detects, across all of that mode's
+#                        occurrences. A rate-weighted property of the design.
+#                        ASSUMED here, and an INPUT to the arithmetic below.
+#
+# A campaign cannot produce a DC figure. It samples a hand-picked fault list; DC
+# integrates over a failure rate distribution. What the campaign CAN do is show
+# that a mechanism works at all, which is why every mode claiming dc > 0 must
+# name at least one fault that challenges it. A DC nobody has ever tested is an
+# assumption wearing a number, and `test_fmeda.py` fails the build on one.
+#
+# ============================ CLASSIFICATION =================================
+# can_violate_alone: true   this mode alone can violate the safety goal. Without
+#                           a mechanism its whole rate is SPF; with one, the
+#                           uncovered part (1 - dc) is RF.
+# can_violate_alone: false  a second independent fault is needed. The uncovered
+#                           part is a LATENT multiple-point fault; the covered
+#                           part is a detected one.
+# safety_related: false     cannot contribute to violating any safety goal. Safe
+#                           fault, counted in the total but not the numerator.
+
+version: 1
+
+provenance:
+  rates: synthetic
+  source: >
+    Invented for this exercise. Orders of magnitude are loosely typical of the
+    named part class; no value is traceable to a reference or a data sheet.
+  units: FIT, failures per 10^9 operating hours
+  licenses_no_claim: >
+    No ASIL, no SIL, no conformance and no statement about any real product
+    follows from anything in this file.
+
+#: What the metrics are compared against. ISO 26262-5 gives SPFM and LFM targets
+#: per ASIL; this names the one being reported against so a reader does not have
+#: to guess which column applies. It is a comparison, not a claim to have met it.
+target_asil: D
+
+elements:
+
+  # --- sensing --------------------------------------------------------------
+  - id: TEMP_A
+    name: Winding temperature channel A
+    modes:
+      - id: FM-TA-01
+        title: Stuck at a plausible in-range value
+        lambda_fit: 45.0
+        safety_related: true
+        can_violate_alone: true
+        mechanism: Cross check against channel B and the model estimator
+        diagnostic_coverage: 0.90
+        challenged_by: [FLT-S01, FLT-S03]
+        note: >
+          The dangerous one. An out of range reading is trivially detectable; a
+          plausible wrong one is what defeats a single-channel design, and it is
+          why the second channel and the estimator exist.
+      - id: FM-TA-02
+        title: Open circuit, reads out of range
+        lambda_fit: 60.0
+        safety_related: true
+        can_violate_alone: true
+        mechanism: Range check
+        diagnostic_coverage: 0.99
+        challenged_by: [FLT-S05, FLT-S09]
+      - id: FM-TA-03
+        title: Drift within the plausible band
+        lambda_fit: 25.0
+        safety_related: true
+        can_violate_alone: true
+        mechanism: Cross check against channel B and the model estimator
+        diagnostic_coverage: 0.60
+        challenged_by: [FLT-S08, FLT-S10]
+        note: >
+          Low coverage on purpose. Slow drift stays inside the cross-check
+          tolerance for a long time, which is the same blind spot FLT-T07 has in
+          the time domain.
+
+  - id: TEMP_B
+    name: Winding temperature channel B
+    modes:
+      - id: FM-TB-01
+        title: Stuck at a plausible in-range value
+        lambda_fit: 45.0
+        safety_related: true
+        can_violate_alone: false
+        mechanism: Cross check against channel A and the model estimator
+        diagnostic_coverage: 0.90
+        challenged_by: [FLT-S06]
+        note: >
+          Not single-point capable: B is the redundant channel, so on its own it
+          cannot let an overtemperature through. It can, however, stop a healthy
+          machine, which is HAZ-08 and is a different problem from this metric.
+      - id: FM-TB-02
+        title: Disagreement with channel A of unknown origin
+        lambda_fit: 20.0
+        safety_related: true
+        can_violate_alone: false
+        mechanism: SENSOR_DISAGREEMENT annunciation
+        diagnostic_coverage: 0.50
+        challenged_by: [FLT-S07]
+        note: >
+          Coverage is half because the design detects THAT the channels disagree
+          and cannot say WHICH is lying. FLT-S07 is catalogued residual for
+          exactly this reason, and the number here is the quantitative shadow of
+          that qualitative gap.
+
+  - id: TEMP_EST
+    name: Model based winding temperature estimator
+    modes:
+      - id: FM-TE-01
+        title: Estimate diverges from truth beyond its accuracy budget
+        lambda_fit: 30.0
+        safety_related: true
+        can_violate_alone: false
+        mechanism: Three way majority with channels A and B
+        diagnostic_coverage: 0.70
+        challenged_by: [FLT-S04]
+
+  # --- communication --------------------------------------------------------
+  - id: COMM
+    name: Command channel
+    modes:
+      - id: FM-CO-01
+        title: Payload corrupted in transit
+        lambda_fit: 90.0
+        safety_related: true
+        can_violate_alone: true
+        mechanism: CRC over the protected frame
+        diagnostic_coverage: 0.99
+        challenged_by: [FLT-C01, FLT-C02, FLT-C05, FLT-C07]
+      - id: FM-CO-02
+        title: Frame repeated or stale, and accepted as fresh
+        lambda_fit: 55.0
+        safety_related: true
+        can_violate_alone: true
+        mechanism: Consecutive number and timeout
+        diagnostic_coverage: 0.95
+        challenged_by: [FLT-C04, FLT-C06, FLT-T06]
+      - id: FM-CO-03
+        title: Uniform latency growth with the sequence intact
+        lambda_fit: 15.0
+        safety_related: true
+        can_violate_alone: true
+        mechanism: none
+        diagnostic_coverage: 0.0
+        challenged_by: [FLT-T07, FLT-C08]
+        note: >
+          The residual, quantified. Every frame is individually perfect and
+          arrives before the timeout; what is wrong is the relationship between
+          the sequence and real elapsed time, which neither a CRC nor a counter
+          carries any information about. Closing it needs a timestamp inside the
+          protected frame. This mode is the largest single contributor to the
+          SPF term below, which is the right answer: an uncovered fault that can
+          violate the goal alone is exactly what that term is for.
+      - id: FM-CO-04
+        title: Link drops entirely
+        lambda_fit: 120.0
+        safety_related: true
+        can_violate_alone: true
+        mechanism: Watchdog timeout into STO
+        diagnostic_coverage: 0.99
+        challenged_by: [FLT-C03, FLT-T01]
+
+  # --- control --------------------------------------------------------------
+  - id: CTRL
+    name: Controller logic
+    modes:
+      - id: FM-CT-01
+        title: State machine leaves STO without an explicit reset
+        lambda_fit: 20.0
+        safety_related: true
+        can_violate_alone: true
+        mechanism: STO latch, exit only on explicit reset
+        diagnostic_coverage: 0.97
+        challenged_by: [FLT-T03, FLT-T04, FLT-T02]
+      - id: FM-CT-02
+        title: Telemetry path fails while control continues
+        lambda_fit: 35.0
+        safety_related: false
+        can_violate_alone: false
+        mechanism: none
+        diagnostic_coverage: 0.0
+        challenged_by: []
+        note: >
+          Safe fault. Losing telemetry costs diagnosability, which is why SR-09
+          exists, but it cannot itself violate a safety goal: the drive is no
+          less safe for being harder to explain.
+
+  - id: WDOG
+    name: Watchdog supervision
+    modes:
+      - id: FM-WD-01
+        title: Watchdog fails to time out
+        lambda_fit: 25.0
+        safety_related: true
+        can_violate_alone: false
+        mechanism: none
+        diagnostic_coverage: 0.0
+        challenged_by: []
+        note: >
+          The textbook latent fault and the reason LFM exists as a separate
+          metric. A dead watchdog changes nothing until the thing it watches
+          also fails, at which point there is nothing left to catch it. Nothing
+          in the campaign challenges it, and nothing can: injecting it produces
+          no observable behaviour on its own, which is the definition of latent.
+
+  # --- actuation ------------------------------------------------------------
+  - id: DRIVE
+    name: Drive output stage and STO path
+    modes:
+      - id: FM-DR-01
+        title: Torque remains enabled after STO is commanded
+        lambda_fit: 40.0
+        safety_related: true
+        can_violate_alone: true
+        mechanism: Torque feedback checked against the STO request
+        diagnostic_coverage: 0.90
+        challenged_by: [FLT-A01, FLT-A04]
+      - id: FM-DR-02
+        title: Rotor stalls with torque commanded
+        lambda_fit: 70.0
+        safety_related: true
+        can_violate_alone: true
+        mechanism: Stall detection into STO before the insulation limit
+        diagnostic_coverage: 0.95
+        challenged_by: [FLT-A03]
+      - id: FM-DR-03
+        title: Output stage degrades without tripping any threshold
+        lambda_fit: 30.0
+        safety_related: true
+        can_violate_alone: false
+        mechanism: none
+        diagnostic_coverage: 0.0
+        challenged_by: [FLT-A02]

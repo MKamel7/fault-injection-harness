@@ -1,0 +1,159 @@
+# Fault tree for the thermal top event, as reviewable data rather than code.
+#
+# WHAT THIS ADDS THAT THE TRACEABILITY CHAIN DOES NOT. The chain proves every
+# injected fault descends from a hazard. It does not prove the reverse: that
+# every WAY the hazard can happen has been attacked. A fault tree decomposes the
+# top event into the combinations that produce it, and the minimal cut sets are
+# then a checklist the campaign can be measured against. One artefact answers
+# "is this fault justified", the other answers "is anything missing".
+#
+# THE GATE THIS FILE FEEDS. An order-1 cut set is a single point of failure: one
+# basic event, alone, reaches the top event. Every one of those must be
+# challenged by an injected fault, or the build fails. Order-2 cut sets need two
+# faults and are the dual-point campaign's territory, so each one is either
+# mapped to a catalogued pair in `catalog/dual_point.yaml` or declared
+# unattacked with a reason. Nothing is allowed to be silently absent.
+#
+# BASIC EVENTS CARRY THEIR FAULT IDS, which is what "mapping the campaign onto
+# the cut sets" means in practice. `challenged_by: []` is legal and is a
+# declaration, not an oversight: BE-CCF-SUPPLY is there precisely because this
+# harness cannot inject it.
+#
+# GATE SEMANTICS. `OR` means any child is sufficient. `AND` means all children
+# are required. There is no voting gate: the 2-of-3 majority over the two sensor
+# channels and the estimator is written out as the three AND pairs it expands
+# to, because an expanded tree is one a reviewer can check by eye and a voting
+# gate is one they have to trust the code about.
+
+version: 1
+
+# THE DEMAND IS A CONDITION, NOT A FAULT, and the first version of this file got
+# that wrong. It made the top event AND(heat is generated, protection fails),
+# which is true as a sentence and useless as a tree: every cut set then contains
+# a demand event, every order goes up by one, and there are NO order-1 cut sets
+# at all. The single-point-of-failure gate passed while guarding nothing, which
+# is the exact shape of check this repository argues against.
+#
+# So the tree is scoped to the protection function ON DEMAND, which is also how
+# IEC 61508 and ISO 26262 treat a safety function: the demand is the operating
+# condition under which the function is required, not a failure of it. The
+# demand is recorded below as a precondition so it stays visible, and the cut
+# sets underneath are failures of protection alone. Order 1 now means what it
+# is supposed to mean.
+
+demand:
+  title: Excess heat is generated in the winding
+  note: >
+    The condition under which protection is required. NOT part of the cut sets.
+    Both routes are real and both are exercised by the campaign, which is why
+    they are named here rather than dropped.
+  causes:
+    - id: BE-STALL
+      title: Rotor stalls while torque is commanded
+      challenged_by: [FLT-A03]
+    - id: BE-OVERLOAD
+      title: Sustained current above the rated duty
+      challenged_by: [FLT-C01]
+
+top_event:
+  id: TOP
+  title: Protection fails to remove torque before the insulation limit
+  hazard: HAZ-02
+  goal: SG-02
+  note: >
+    The thermal path is chosen over "uncontrolled torque" because it is the one
+    this device models in detail: the winding has a derived time constant, a
+    rated duty and a documented insulation limit, so the branches below can be
+    argued rather than asserted. Read as: GIVEN a thermal demand, these are the
+    ways the drive fails to stop.
+  gate: OR
+  children:
+
+    # --- sensing --------------------------------------------------------
+    - id: G-SENSE
+      title: The temperature the controller believes is wrong
+      note: >
+        Three channels with a 2-of-3 majority, so two must be wrong together.
+        Written out as the pairs it expands to rather than as a voting gate,
+        because an expanded tree is one a reviewer can check by eye.
+      gate: OR
+      children:
+        - id: G-SENSE-AB
+          title: Both measured channels wrong together
+          gate: AND
+          children:
+            - id: BE-TA-STUCK
+              title: Channel A stuck at a plausible value
+              challenged_by: [FLT-S01, FLT-S03]
+            - id: BE-TB-STUCK
+              title: Channel B stuck at a plausible value
+              challenged_by: [FLT-S06]
+        - id: G-SENSE-AE
+          title: Channel A and the estimator wrong together
+          gate: AND
+          children:
+            - id: BE-TA-STUCK
+              title: Channel A stuck at a plausible value
+              challenged_by: [FLT-S01, FLT-S03]
+            - id: BE-EST-WRONG
+              title: Model estimator diverges beyond its accuracy budget
+              challenged_by: [FLT-S04]
+        - id: G-SENSE-BE
+          title: Channel B and the estimator wrong together
+          gate: AND
+          children:
+            - id: BE-TB-STUCK
+              title: Channel B stuck at a plausible value
+              challenged_by: [FLT-S06]
+            - id: BE-EST-WRONG
+              title: Model estimator diverges beyond its accuracy budget
+              challenged_by: [FLT-S04]
+
+        # --- common cause, and the reason this branch matters -------------
+        - id: BE-CCF-SUPPLY
+          title: One cause defeats every temperature channel at once
+          challenged_by: []
+          unattacked_reason: >
+            A shared supply rail, a shared reference or a common thermal path
+            defeats all three channels together. This harness injects at the
+            signal level and has no model of a shared resource, so it CANNOT
+            inject this. It is the most important entry in this file: it
+            collapses an order-2 cut set into an order-1 one, so the majority
+            vote buys nothing against it. Closing it is an architecture
+            question, independent supplies and diverse sensing elements, not a
+            test question.
+
+    # --- communication --------------------------------------------------
+    - id: G-COMMS
+      title: The command channel fails without the watchdog acting
+      gate: OR
+      children:
+        - id: BE-STALE
+          title: Stale or repeated frames accepted as evidence of liveness
+          challenged_by: [FLT-C04, FLT-C06, FLT-T06]
+        - id: BE-DRIFT
+          title: Uniform latency growth with the frame sequence intact
+          challenged_by: [FLT-T07, FLT-C08]
+          note: >
+            Catalogued residual. Every frame is individually perfect and
+            arrives before the timeout; what is wrong is the relationship
+            between the sequence and elapsed time, which neither a CRC nor a
+            counter carries information about.
+        - id: BE-LINK
+          title: Link lost and the watchdog fails to time out
+          challenged_by: [FLT-C03, FLT-T01]
+
+    # --- control ---------------------------------------------------------
+    - id: G-CONTROL
+      title: The controller does not hold the safe state
+      gate: OR
+      children:
+        - id: BE-STO-LEAK
+          title: STO exited without an explicit reset
+          challenged_by: [FLT-T03, FLT-T04, FLT-T02]
+        - id: BE-TORQUE-STUCK
+          title: Torque remains enabled after STO is commanded
+          challenged_by: [FLT-A01, FLT-A04]
+        - id: BE-DEGRADE
+          title: Output stage degrades without tripping any threshold
+          challenged_by: [FLT-A02]
