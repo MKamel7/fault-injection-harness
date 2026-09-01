@@ -307,8 +307,6 @@ the cut sets.
 Timing faults landed on 31 August and the result is in the table above: **jitter is caught, drift is not.** FLT-T07 is now a documented residual, because a counter and timeout pair cannot see uniform latency growth. Every frame is individually perfect, the consecutive number is exactly one more than the last, and it arrives before the timeout; what is wrong is the relationship between the frame sequence and real elapsed time, and neither a checksum nor a counter carries any information about that. Closing it needs a timestamp in the protected frame, which is a change to what the frame carries rather than to the checks over it.
 
 - **Implement PROFIsafe properly and delete the caveat.** The 8-bit CRC currently stands in for a scheme that really uses a wider CRC and a 24-bit consecutive number over its F-Parameters. It is the only asterisk on the headline claim.
-- ~~**A fault tree linked to the campaign**~~ **Done, 1 September.** `catalog/fault_tree.yaml`, `src/fih/fault_tree.py`, `docs/fault-tree.svg`. See the section above. It found three double failures the pair campaign has never attacked, which is the point of having built it.
-- ~~**An explicitly educational FMEDA**~~ **Done, 1 September.** `catalog/fmeda.yaml` and `src/fih/fmeda.py`. See the section above. The separation held: diagnostic coverage is an INPUT to that file, never an output, and the only traffic permitted from the campaign is falsification.
 
 Not doing: **renaming this to a "Framework".** It breaks every link and claims more than "harness" does, which cuts against the accuracy discipline that makes this worth reading. And not chasing 100% detection: four faults are residual by design, each recording what would be needed to catch it.
 
