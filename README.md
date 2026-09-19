@@ -1,5 +1,11 @@
 # Fault injection harness
 
+[![CI](https://github.com/MKamel7/fault-injection-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/MKamel7/fault-injection-harness/actions)
+[![Faults](https://img.shields.io/badge/faults-29%20injected%2C%2024%20caught-brightgreen)](docs)
+[![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+
+
 Hazard derived fault injection against an embedded motor controller, producing a
 requirement to test traceability matrix and a fault coverage report with
 detection latency measured against a fault tolerant time interval budget.
@@ -22,7 +28,7 @@ are compared on the same fault set.
 3 of 11 safety requirements currently NOT met, each named with why
 ```
 
-## The whole argument, on one picture
+## 🖼️ The whole argument, on one picture
 
 ![hazard to evidence](docs/traceability-chain.svg)
 
@@ -53,7 +59,7 @@ what the argument claims; `report/coverage.md` states whether the claim held.
 Colouring by live result would make the same committed diagram mean different
 things on different days.
 
-## What this is for
+## 🎯 What this is for
 
 There is a version of "fault injection" that means generating training data for a
 classifier, and a version that means generating evidence. This is the second one.
@@ -76,7 +82,7 @@ detect them. Each one records what design change would be needed, and one of the
 exists specifically to stop a fix being oversold. A campaign reporting complete
 detection would not be credible.
 
-## The headline finding
+## 📊 The headline finding
 
 **The obvious fix for a sensor you cannot trust is a second sensor. It was the
 wrong fix**, and the campaign proved it three separate ways before a channel of a
@@ -128,7 +134,7 @@ the winding past its limit undetected. That is three faults, so the harness cann
 express it as a pair, and it is written into the safety argument rather than left
 to be found.
 
-## Three outcomes, not two
+## ⚖️ Three outcomes, not two
 
 A design can detect a fault and still fail to protect against it, so the catalog
 distinguishes **detected**, **detected but outside budget**, and **residual**.
@@ -140,7 +146,7 @@ fault challenging it is detected inside its budget. The weaker existential rule
 was in place first and scored SR-10 as satisfied while a sensor stuck at ambient
 let the winding reach 207 C.
 
-## The cross domain comparison
+## 🔄 The cross domain comparison
 
 `src/fih/protection.py` implements one CRC plus counter plus timeout mechanism
 and configures it two ways, because AUTOSAR E2E and PROFIsafe are the same idea
@@ -164,7 +170,7 @@ an application layer job.
 `docs/STANDARDS_MAPPING.md` carries one requirement, SR-05, through both stacks
 side by side.
 
-## Layout
+## 📁 Layout
 
 ```
 docs/HAZARD_ANALYSIS.md      8 hazards, 7 safety goals, 11 safety requirements with FTTI budgets
@@ -178,7 +184,7 @@ src/fih/protection.py        the shared mechanism, two profiles
 report/                      generated evidence, rebuilt and checked on every push
 ```
 
-## Running it
+## ▶️ Running it
 
 ```sh
 uv run --group dev pytest                       # the catalog driven suite
@@ -195,7 +201,7 @@ temperature channel appeared, the thermal model was validated and corrected, and
 a third channel replaced the second. Each arrived as a deliberate repin with the
 evidence regenerated, rather than as a silent shift under a published report.
 
-## The FMEDA, and the wall next to it
+## 📋 The FMEDA, and the wall next to it
 
 `catalog/fmeda.yaml` is an **educational** FMEDA over a **hypothetical** bill of
 materials. **Every failure rate in it is invented.** Nothing computed from it
@@ -247,7 +253,7 @@ nobody has ever tested is an assumption wearing a number. That traffic runs in
 one direction only. Modes that claim nothing, like the watchdog that cannot be
 observed failing on its own, need no fault and are the honest latent case.
 
-## The fault tree, and what it found
+## 🌳 The fault tree, and what it found
 
 ![the fault tree](docs/fault-tree.svg)
 
@@ -302,7 +308,29 @@ required, not a failure of it. The tree is now scoped to the protection function
 means what it is supposed to mean. A test asserts the demand events are not in
 the cut sets.
 
-## Roadmap
+## 💡 What I learned
+
+- **"Pass" and "fail" are not enough outcomes.** A fault that is detected late is not
+  the same as one that is never detected, and calling both a failure throws away the
+  information that matters most to a safety argument. Splitting the result into three
+  outcomes changed what the report could say.
+
+- **Detection latency only means something against a budget.** Measuring how fast a
+  fault is caught is useless on its own. Measuring it against the fault-tolerant time
+  interval turns a number into a verdict.
+
+- **Modelling a standard is not implementing it, and saying so costs nothing.** The
+  CRC8 here uses the J1850 polynomial, correct for E2E Profile 1, and the same 8-bit
+  CRC is reused for the PROFIsafe configuration, where the real thing uses a wider CRC
+  and a 24-bit consecutive number. Writing that limitation into the README made the
+  comparison more useful, not less, because a reader knows exactly what they are
+  looking at.
+
+- **The faults you do not catch are the interesting output.** Reporting the 5 that got
+  through, alongside 3 of 11 requirements not yet satisfied, is what makes the 24 that
+  were caught believable.
+
+## 🔭 Future improvements
 
 Timing faults landed on 31 August and the result is in the table above: **jitter is caught, drift is not.** FLT-T07 is now a documented residual, because a counter and timeout pair cannot see uniform latency growth. Every frame is individually perfect, the consecutive number is exactly one more than the last, and it arrives before the timeout; what is wrong is the relationship between the frame sequence and real elapsed time, and neither a checksum nor a counter carries any information about that. Closing it needs a timestamp in the protected frame, which is a change to what the frame carries rather than to the checks over it.
 
@@ -310,7 +338,7 @@ Timing faults landed on 31 August and the result is in the table above: **jitter
 
 Not doing: **renaming this to a "Framework".** It breaks every link and claims more than "harness" does, which cuts against the accuracy discipline that makes this worth reading. And not chasing 100% detection: four faults are residual by design, each recording what would be needed to catch it.
 
-## What is not claimed
+## ⚠️ What is not claimed
 
 No conformance, no certification, no ASIL and no SIL. ISO 26262, IEC 61508,
 IEC 61800-5-2, IEC 61784-3 and Automotive SPICE are paid standards and
