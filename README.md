@@ -330,6 +330,14 @@ the cut sets.
   through, alongside 3 of 11 requirements not yet satisfied, is what makes the 24 that
   were caught believable.
 
+- **An outside reviewer found what two of my own reviews missed.** A reviewer at TU
+  Munich noticed the overload channel had no current sensor and therefore privileged
+  access to the plant, which made my headline diversity result partly self-fulfilling.
+  Two earlier model reviews had walked straight past it. The author of a hazard
+  analysis is the last person able to see the hazard they did not think of, and that is
+  the argument for review rather than a slogan about it. The three rounds are recorded
+  in full in [`docs/REVIEW.md`](docs/REVIEW.md), including that one.
+
 ## 🔭 Future improvements
 
 Timing faults landed on 31 August and the result is in the table above: **jitter is caught, drift is not.** FLT-T07 is now a documented residual, because a counter and timeout pair cannot see uniform latency growth. Every frame is individually perfect, the consecutive number is exactly one more than the last, and it arrives before the timeout; what is wrong is the relationship between the frame sequence and real elapsed time, and neither a checksum nor a counter carries any information about that. Closing it needs a timestamp in the protected frame, which is a change to what the frame carries rather than to the checks over it.
@@ -338,39 +346,3 @@ Timing faults landed on 31 August and the result is in the table above: **jitter
 
 Not doing: **renaming this to a "Framework".** It breaks every link and claims more than "harness" does, which cuts against the accuracy discipline that makes this worth reading. And not chasing 100% detection: four faults are residual by design, each recording what would be needed to catch it.
 
-## ⚠️ What is not claimed
-
-No conformance, no certification, no ASIL and no SIL. ISO 26262, IEC 61508,
-IEC 61800-5-2, IEC 61784-3 and Automotive SPICE are paid standards and
-conformance is an assessor's judgement. This work is *structured per* and *mapped
-to* their concepts.
-
-The figure computed here is **detection coverage over the injected fault set**,
-which is a statement about this catalog. It is **not** diagnostic coverage in the
-ISO 26262 sense: that requires an FMEDA with component failure rates in FIT, and
-there are none for this design. `catalog/fmeda.yaml` computes the ISO 26262-5
-metrics over a **hypothetical bill of materials with invented rates**, which
-demonstrates the arithmetic and describes nothing real. Latencies are in **simulation steps**, never seconds,
-because the device's thermal time scale is deliberately compressed.
-
-**It has been independently reviewed, and not independently assessed.**
-`docs/REVIEW.md` records three rounds, including a reviewer at TU Munich who
-found that the overload channel had no current sensor and therefore privileged
-access to the plant, which made the headline diversity result partly
-self-fulfilling. Two earlier model reviews had missed it.
-
-What remains open is a qualified assessment, meaning a judgement by an assessor
-against a standard. Both ISO 26262 and IEC 61508 scale required independence with
-ASIL or SIL, for the reason that the author of a hazard analysis is the person
-least able to notice the hazard they did not think of. Review narrows that gap.
-It does not close it.
-
-The work is **well verified and essentially not validated**. Verified: the
-harness does what it claims, reproducibly, with the evidence regenerated and
-staleness-checked on every push. Not validated: the device is a model that has
-never been compared to a real drive, and its thermal time scale is deliberately
-compressed, so every latency is internally consistent and externally meaningless.
-
-`docs/SAFETY_ARGUMENT.md` sections 5 and 6 give the full account, including the
-four occasions where an expected result was revised after observing the actual
-one.
