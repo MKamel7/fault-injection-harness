@@ -59,6 +59,16 @@ what the argument claims; `report/coverage.md` states whether the claim held.
 Colouring by live result would make the same committed diagram mean different
 things on different days.
 
+## 🛠️ Built with
+
+| | |
+| --- | --- |
+| **Language** | Python |
+| **Safety methods** | Hazard analysis, FMEDA, fault tree analysis |
+| **Protection layers** | CRC, counter and timeout, configured as AUTOSAR E2E and PROFIsafe |
+| **Device under test** | Simulated embedded motor controller |
+| **Engineering** | Requirement-to-test traceability, GitHub Actions CI |
+
 ## 🎯 What this is for
 
 There is a version of "fault injection" that means generating training data for a
@@ -346,3 +356,8 @@ Timing faults landed on 31 August and the result is in the table above: **jitter
 
 Not doing: **renaming this to a "Framework".** It breaks every link and claims more than "harness" does, which cuts against the accuracy discipline that makes this worth reading. And not chasing 100% detection: four faults are residual by design, each recording what would be needed to catch it.
 
+---
+
+Built by **Mo Kamel**, M.Eng. Mechatronic and Cyber-Physical Systems, Technische
+Hochschule Deggendorf.
+[Portfolio](https://mkamel7.github.io) · [LinkedIn](https://linkedin.com/in/mo-kamel7)
