@@ -281,29 +281,37 @@ STYLE = {
 
 
 def _layout(event: Event, depth: int, cursor: list[int],
-            out: list[tuple[Event, int, int, int]]) -> tuple[int, int]:
+            out: list[tuple[Event, int, int, int]],
+            edges: list[tuple[int, int, int, int]]) -> tuple[int, int, int]:
     """Place children first, then centre the parent over them.
 
     A tidy-tree layout in miniature. Leaves are packed left to right in visit
     order; a gate is centred on the span of its children, which is what makes
     an AND pair read as a pair rather than as two unrelated boxes.
+
+    Edges are recorded PER PLACEMENT, not looked up by id. A gate reused under
+    several parents is drawn once under each, and an id lookup would send every
+    parent's edge to whichever copy was placed last.
     """
     if event.is_basic:
         x = cursor[0]
         cursor[0] += BOX_WIDTH + H_GAP
         out.append((event, x, depth, x))
-        return x, x
-    spans = [_layout(child, depth + 1, cursor, out) for child in event.children]
+        return x, x, x
+    spans = [_layout(child, depth + 1, cursor, out, edges)
+             for child in event.children]
     left, right = spans[0][0], spans[-1][1]
     centre = (left + right) // 2
     out.append((event, centre, depth, centre))
-    return left, right
+    edges.extend((centre, depth, child_x, depth + 1) for _, _, child_x in spans)
+    return left, right, centre
 
 
 def render_svg(tree: FaultTree, cover: Coverage | None = None) -> str:
     """The tree as a standalone SVG, readable on a dark background."""
     placed: list[tuple[Event, int, int, int]] = []
-    _layout(tree.root, 0, [MARGIN], placed)
+    edges: list[tuple[int, int, int, int]] = []
+    _layout(tree.root, 0, [MARGIN], placed, edges)
 
     singles = {next(iter(c)) for c in tree.by_order(1)}
     declared = set(cover.declared_unattackable) if cover else set()
@@ -329,15 +337,12 @@ def render_svg(tree: FaultTree, cover: Coverage | None = None) -> str:
         f'member.</text>',
     ]
 
-    position = {event.identifier: (x, d) for event, x, d, _ in placed}
-    for event, x, d, _ in placed:
-        for child in event.children:
-            cx, cd = position[child.identifier]
-            x1, y1 = x + BOX_WIDTH // 2, geometry(d) + BOX_HEIGHT
-            x2, y2 = cx + BOX_WIDTH // 2, geometry(cd)
-            mid = (y1 + y2) / 2
-            out.append(f'<path d="M{x1} {y1} C{x1} {mid} {x2} {mid} {x2} {y2}" '
-                       f'fill="none" stroke="#39404d" stroke-width="1"/>')
+    for x, d, cx, cd in edges:
+        x1, y1 = x + BOX_WIDTH // 2, geometry(d) + BOX_HEIGHT
+        x2, y2 = cx + BOX_WIDTH // 2, geometry(cd)
+        mid = (y1 + y2) / 2
+        out.append(f'<path d="M{x1} {y1} C{x1} {mid} {x2} {mid} {x2} {y2}" '
+                   f'fill="none" stroke="#39404d" stroke-width="1"/>')
 
     for event, x, d, _ in placed:
         y = geometry(d)

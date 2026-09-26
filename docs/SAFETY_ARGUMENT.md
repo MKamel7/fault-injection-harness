@@ -58,7 +58,7 @@ falsified by running the campaign would not be worth making.
 | Latent plus primary pair campaign, with both members also run alone | `catalog/dual_point.yaml`, `report/dual_point.md` | A latent fault is defined by the difference, so the difference is what is reported |
 | Bidirectional traceability, build fails on a gap in either direction | `src/fih/traceability.py`, `report/traceability.md` | Every requirement is verified and every fault answers a requirement |
 | Coverage report with latency against each FTTI | `report/coverage.md` | Detection *in time*, not just detection |
-| 323 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
+| 326 tests, 100% branch coverage, ruff and mypy strict, gated in CI | `.github/workflows/verify.yml` | The harness itself is not the weak link |
 
 ### Why the traceability gate runs in both directions
 
@@ -185,6 +185,18 @@ undetected. The cooling fault alone is caught by the frame sensor, so it takes
 all three. That is **three** faults, so this harness cannot express it as a
 catalogued pair, and it is recorded here rather than left to be discovered.
 
+The fault tree (`catalog/fault_tree.yaml`) finds a shorter route and puts it at
+**order 1**. One cause taking both temperature sensors, FLT-S05, is caught under
+a stall only because the overload channel sees the current. Under degraded
+cooling the current is rated, so nothing is left: both sensors stuck with
+cooling at 0.35 of nominal runs to 204 C undetected, and a test runs that
+combination. Cooling degradation is a demand rather than a fault, which is why
+this is a single point of failure and not a pair. The tree also has two other
+single points it cannot attack, a common cause spanning the temperature and
+current sensors and an output stage that ignores STO, and one unattacked double
+failure: the winding sensor reading low while the current sensor under-reads,
+where the cross check fires only once the winding is at 187.5 C.
+
 ### Three outcomes, and a universal reading of satisfaction
 
 The catalog distinguishes **detected**, **detected but outside budget**, and
@@ -212,7 +224,7 @@ validated**, and no amount of additional testing changes the second half.
 
 | Property | How it is established |
 |---|---|
-| The harness does what it claims | 323 tests, 100% statement and branch coverage, gated in CI |
+| The harness does what it claims | 326 tests, 100% statement and branch coverage, gated in CI |
 | Every requirement has evidence, every fault answers a requirement | Bidirectional gate that fails the build on a gap in either direction, and is itself tested by being deliberately broken |
 | Results are reproducible | No randomness in the campaign, asserted by test: same fault, identical result |
 | The published evidence matches the code | CI rebuilds the report and fails if the committed artifacts have gone stale |
@@ -292,7 +304,8 @@ complete**, and that is the gap it is most often mistaken for closing.
 
 There are eight hazards. They were not derived by a documented systematic method:
 no HAZOP guide word sweep, no FMEA worksheet, no fault tree, no STPA control
-structure, and no review. Asked "how do you know you have not missed a hazard",
+structure, and no review. (The fault tree in `catalog/fault_tree.yaml` came later
+and decomposes one hazard that was already listed; it does not find hazards.) Asked "how do you know you have not missed a hazard",
 the honest answer is that we do not.
 
 The same applies to the fault set. The twenty nine faults were chosen because

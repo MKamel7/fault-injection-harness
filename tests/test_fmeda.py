@@ -12,11 +12,12 @@ exists:
   * `test_a_vacuous_metric_is_reported_as_vacuous` guards the shape of gate this
     repository is otherwise careful about. An SPFM of 100% over nothing is the
     best possible number and means nothing was analysed.
-  * `test_the_documented_residual_is_the_largest_single_point_contributor` is
+  * `test_every_single_point_contributor_is_a_gap_named_elsewhere` is
     the cross-check worth having. The campaign found the clock-drift gap
-    qualitatively, by injecting FLT-T07 and watching it survive. The FMEDA finds
-    it again from rates alone. Two independent routes to the same conclusion is
-    the point of doing both.
+    qualitatively, by injecting FLT-T07 and watching it survive; the fault tree
+    declares the output stage gap. The FMEDA's single-point term must be made
+    of gaps those two already name. Independent routes to the same conclusion
+    are the point of doing all three.
 """
 
 from __future__ import annotations
@@ -314,22 +315,37 @@ def test_a_mode_with_no_coverage_needs_no_challenging_fault() -> None:
 
 
 # --- the cross-check worth having --------------------------------------------
-def test_the_documented_residual_is_the_largest_single_point_contributor() -> None:
-    """Two independent routes to the same gap.
+def test_every_single_point_contributor_is_a_gap_named_elsewhere() -> None:
+    """Two independent routes to the same gaps.
 
-    The campaign found it qualitatively: inject FLT-T07, watch a counter and
-    timeout fail to see uniform latency growth, catalogue it residual. The FMEDA
-    finds it again from rates alone, with no knowledge of that result. If these
-    two ever disagree, one of them is wrong and it matters which.
+    The campaign found the clock-drift gap qualitatively: inject FLT-T07, watch
+    a counter and timeout fail to see uniform latency growth, catalogue it
+    residual. The fault tree found the output stage gap structurally, as a
+    single point it declares unattackable. The FMEDA's single-point term must
+    consist of exactly such gaps. An uncovered single-point mode that neither
+    artefact names is a gap nobody has looked at, and if these ever disagree,
+    one of them is wrong and it matters which.
     """
-    modes = load_fmeda()[0]
-    single_point = [m for m in modes
+    from fih.dual_point import load_pairs
+    from fih.fault_tree import coverage, load_tree
+
+    residual = {f.id for f in load_catalog() if f.is_residual}
+    tree = load_tree()
+    declared = coverage(tree, {f.id for f in load_catalog()},
+                        {frozenset((p.latent, p.primary))
+                         for p in load_pairs()}).declared_unattackable
+    single_point = [m for m in load_fmeda()[0]
                     if m.classification is Classification.SINGLE_POINT]
     assert single_point, "the analysis has no single-point fault at all"
-    worst = max(single_point, key=lambda m: m.lambda_fit)
-    assert "FLT-T07" in worst.challenged_by, (
-        f"the largest single-point contributor is {worst.identifier}, which "
-        f"does not trace to the documented clock-drift residual")
+    assert any("FLT-T07" in m.challenged_by for m in single_point), (
+        "the documented clock-drift residual no longer shows up as a "
+        "single-point contributor")
+    unnamed = [m.identifier for m in single_point
+               if not set(m.challenged_by) & residual
+               and not any(event in m.note for event in declared)]
+    assert not unnamed, (
+        f"these single-point modes trace to neither a catalogued residual nor "
+        f"a declared fault tree gap: {unnamed}")
 
 
 def test_the_metrics_are_reported_against_a_named_asil_and_not_claimed() -> None:

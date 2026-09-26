@@ -160,13 +160,18 @@ faults:
       the winding covers its entire permitted rise in 7 steps, which no
       thermometer mounted further from the heat can match. Detection is not
       protection.
-      AGAINST THREE CHANNELS it is detected in time. DUT v2.2 added a model
-      based estimator that integrates commanded loss instead of measuring
-      temperature, so it has no thermal mass and no lag. Caught at step 7 with
-      the winding at 139.6 C, inside both budget and limit. The fix was a
+      HISTORICAL, v2.2: a model based estimator integrating commanded loss was
+      added as a third channel and caught this at step 7 with the winding at
+      139.6 C. It was withdrawn in v3.0, because its tolerable prediction error
+      came out at 0.00 percent.
+      AS BUILT IN v3.1 it is detected in time by the overload channel, an I2t
+      accumulator on a measured current sensor, which has no thermal mass and
+      no lag: caught at step 2 with the winding at 51.6 C. The fix was a
       different KIND of channel, not a better threshold, and that is the lesson
       worth carrying: the second thermometer was the obvious answer and the
-      wrong one.
+      wrong one. Under a locked rotor it depends on that channel alone; with the
+      current sensor also stuck (not catalogued as a pair) the cross check fires
+      at step 28 with the winding at 187.5 C, past the limit.
 
   - id: FLT-S02
     title: Temperature sensor stuck at an alarming value
@@ -223,7 +228,10 @@ faults:
       the fastest and most obvious one. The budget is derived the same way as
       the others, by measuring how long the winding takes to cover its permitted
       rise at this load: 36 steps here against 7 under locked rotor current.
-      THE RESULT IS THE INTERESTING PART. The cross check fires at step 27,
+      HISTORICAL figures from the two sensor design follow; the budget has
+      since been re-derived as 136 steps, and in v3.1 the overload channel
+      catches this first, at step 7 with the winding at 48.7 C.
+      THE RESULT IS THE INTERESTING PART. The cross check fired at step 27,
       inside the budget, with the winding at 117 C and still under its limit. So
       the second temperature source DOES protect against a lying sensor under a
       sustained overload, and fails only under the locked rotor case where the
@@ -248,20 +256,24 @@ faults:
     expectation: detected
     history: >
       WAS RESIDUAL until DUT v2.2, and it is the clearest demonstration in this
-      catalog of the difference between redundant and diverse. With two
+      catalog of the difference between redundant and diverse. HISTORICAL: with two
       temperature sensors the winding ran past 1500 C undetected, exactly as the
       single channel design did: a shared supply, ADC reference, harness or
       connector makes two sensors one channel wearing two names, and both limits
       plus the cross check between them agreed perfectly all the way to
       destruction.
       The entry's own rationale said closing it needed channels that were
-      DIVERSE rather than merely duplicated. The model based estimator is
-      exactly that, because it does not read a sensor at all, so whatever took
-      both sensors leaves it untouched. Caught at step 7, inside the limit.
+      DIVERSE rather than merely duplicated. In v2.2 that was a model based
+      estimator, withdrawn in v3.0. AS BUILT IN v3.1 it is the overload channel,
+      which reads a current sensor rather than a temperature sensor, so
+      whatever took both temperature sensors leaves it untouched. Caught at
+      step 2 with the winding at 51.6 C.
       What has NOT changed is the argument. A third channel of the same kind
       would still have failed here. This closes because the third channel is a
       different kind, and FLT-A03 is catalogued alongside it to show the price:
-      the estimator is blind to the plant in exactly the way the sensors are not.
+      the overload channel sees current, not cooling. Under degraded cooling
+      this same common cause is undetected (measured at 204 C), which is why the
+      fault tree puts it at order 1. It closes under a stall, not everywhere.
 
   - id: FLT-S06
     title: Frame sensor reads high while the motor is healthy
@@ -313,9 +325,12 @@ faults:
       named as a scope limit in the safety argument. ISO 26262's latent fault
       metrics exist precisely for this combination, and this entry is the closest
       the catalog comes to one.
-      Closing it needs a third channel, or a plausibility check of the frame
-      reading against commanded current and elapsed time, which is the same
-      estimator FLT-S01 needs and would serve both.
+      The v3.1 overload channel does not close it: it covers the HAZARD when
+      the winding sensor also fails under a stall (DP-01), but nothing detects
+      the frame sensor itself going dead. Closing it needs a diagnostic on the
+      frame channel, such as a plausibility check of the frame reading against
+      measured current and elapsed time, now that the item has a current
+      sensor to check it against.
 
   - id: FLT-S04
     title: Speed feedback stuck at zero
@@ -432,9 +447,12 @@ faults:
     ftti_steps: null
     expectation: residual
     residual_rationale: >
-      Loss of torque is silent without current sensing or a load side
-      measurement, neither of which this item has. Closing it needs current
-      feedback compared against the commanded operating point.
+      Loss of torque is silent. Since v3.1 the item has a current sensor, but
+      only the overload channel reads it, and only for current ABOVE rated, so a
+      motor drawing too little current for its command looks like a light load.
+      There is no load side measurement either. Closing it needs the measured
+      current compared against the commanded operating point, a check the
+      sensor now makes possible and the item does not perform.
 
   # --- timing ---------------------------------------------------------------
   - id: FLT-A03
@@ -451,11 +469,13 @@ faults:
     expectation: detected
     history: >
       Added with the model based estimator in DUT v2.2, deliberately, to
-      demonstrate the OTHER half of the diversity argument. The estimator closes
-      every sensor fault in this catalog because it does not read a sensor. This
-      entry is what it cannot do: it knows only what was commanded and assumes
-      nominal cooling, so with real cooling at a third of nominal it predicts the
-      nominal and misses the fault entirely. The winding sensor catches it.
+      demonstrate the OTHER half of the diversity argument. HISTORICAL: the
+      estimator knew only what was commanded and assumed nominal cooling, so it
+      missed this entirely.
+      AS BUILT IN v3.1 the same half holds for the overload channel. The current
+      stays at rated, so the I2t accumulator ends the run at exactly zero, and
+      the frame sensor catches it: OVERTEMP_HOUSING at step 770 with the winding
+      at 135 C.
       So neither kind of channel is sufficient and the pair is not redundancy, it
       is coverage of two disjoint failure classes. An argument for diversity that
       only demonstrates the flattering half is not an argument, which is why this

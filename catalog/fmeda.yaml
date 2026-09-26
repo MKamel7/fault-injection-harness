@@ -67,48 +67,63 @@ elements:
   - id: TEMP_A
     name: Winding temperature channel A
     modes:
+      # WHY NONE OF THESE CAN VIOLATE ALONE ANY MORE. They were single-point
+      # capable when the item had one temperature sensor. In DUT v3.1 any
+      # channel trips, so a winding sensor fault reaches the top event only
+      # together with a second one: `catalog/fault_tree.yaml` has BE-TA-LOW in
+      # order-2 cut sets and never at order 1. The FMEDA is kept consistent
+      # with the tree rather than with the design it used to describe.
       - id: FM-TA-01
         title: Stuck at a plausible in-range value
         lambda_fit: 45.0
         safety_related: true
-        can_violate_alone: true
-        mechanism: Cross check against channel B and the model estimator
+        can_violate_alone: false
+        mechanism: Cross check against the frame sensor (SENSOR_DISAGREEMENT)
         diagnostic_coverage: 0.90
-        challenged_by: [FLT-S01, FLT-S03]
+        challenged_by: [FLT-S01, FLT-S08]
         note: >
           The dangerous one. An out of range reading is trivially detectable; a
           plausible wrong one is what defeats a single-channel design, and it is
-          why the second channel and the estimator exist.
+          why the frame sensor and the overload channel exist. The overload
+          channel covers the HAZARD this mode creates under a stall; the cross
+          check is what detects the FAULT, which is the quantity DC is about.
       - id: FM-TA-02
         title: Open circuit, reads out of range
         lambda_fit: 60.0
         safety_related: true
-        can_violate_alone: true
-        mechanism: Range check
+        can_violate_alone: false
+        mechanism: Reading high trips as an overtemperature, reading low disagrees with the frame
         diagnostic_coverage: 0.99
-        challenged_by: [FLT-S05, FLT-S09]
+        challenged_by: [FLT-S02]
+        note: >
+          There is no dedicated range check in the item. An open circuit fails
+          to one rail or the other, and both ends are caught by mechanisms that
+          exist: FLT-S02 holds the reading at 200 C and trips OVERTEMP_WINDING at
+          step 1. Previously this cited FLT-S05 and FLT-S09, a common cause and a
+          current sensor fault, neither of which exercises an out of range
+          winding reading.
       - id: FM-TA-03
         title: Drift within the plausible band
         lambda_fit: 25.0
         safety_related: true
-        can_violate_alone: true
-        mechanism: Cross check against channel B and the model estimator
+        can_violate_alone: false
+        mechanism: Cross check against the frame sensor (SENSOR_DISAGREEMENT)
         diagnostic_coverage: 0.60
-        challenged_by: [FLT-S08, FLT-S10]
+        challenged_by: [FLT-S03]
         note: >
           Low coverage on purpose. Slow drift stays inside the cross-check
           tolerance for a long time, which is the same blind spot FLT-T07 has in
-          the time domain.
+          the time domain. FLT-S03 is the catalogued drift, a 60 C negative bias.
 
   - id: TEMP_B
-    name: Winding temperature channel B
+    name: Frame (housing) temperature channel B
     modes:
       - id: FM-TB-01
         title: Stuck at a plausible in-range value
         lambda_fit: 45.0
         safety_related: true
         can_violate_alone: false
-        mechanism: Cross check against channel A and the model estimator
+        mechanism: Cross check against channel A (SENSOR_DISAGREEMENT)
         diagnostic_coverage: 0.90
         challenged_by: [FLT-S06]
         note: >
@@ -129,17 +144,41 @@ elements:
           exactly this reason, and the number here is the quantitative shadow of
           that qualitative gap.
 
-  - id: TEMP_EST
-    name: Model based winding temperature estimator
+  # The third channel. It replaced a predicted-temperature estimator in DUT
+  # v3.0, and since v3.1 it integrates a real CURRENT SENSOR, so it has failure
+  # modes of its own. This element used to be the estimator, with a DC of 0.70
+  # from a "three way majority" the device never had, challenged by FLT-S04,
+  # which is a speed feedback fault and touches neither.
+  - id: CURR
+    name: Phase current sensor feeding the overload (I2t) channel
     modes:
-      - id: FM-TE-01
-        title: Estimate diverges from truth beyond its accuracy budget
-        lambda_fit: 30.0
+      - id: FM-CU-01
+        title: Stuck at or below rated, the accumulator never grows
+        lambda_fit: 20.0
         safety_related: true
         can_violate_alone: false
-        mechanism: Three way majority with channels A and B
-        diagnostic_coverage: 0.70
-        challenged_by: [FLT-S04]
+        mechanism: none
+        diagnostic_coverage: 0.0
+        challenged_by: [FLT-S09]
+        note: >
+          Latent, and honestly so. The winding sensor still covers the hazard
+          (FLT-S09 is caught by OVERTEMP_WINDING at step 20), but nothing in the
+          item detects the sensor fault itself, so it sits there until a second
+          fault needs the channel it removed. DP-05 is that second fault.
+          Closing it needs a plausibility check of reported current against
+          commanded torque, which the item does not have.
+      - id: FM-CU-02
+        title: Gain error, reads proportionally low
+        lambda_fit: 10.0
+        safety_related: true
+        can_violate_alone: false
+        mechanism: none
+        diagnostic_coverage: 0.0
+        challenged_by: [FLT-S10]
+        note: >
+          Latent for the same reason. At a gain of 0.5 the channel still trips a
+          locked rotor, because the real current is far above its threshold,
+          but nothing reports that the sensor is wrong.
 
   # --- communication --------------------------------------------------------
   - id: COMM
@@ -174,9 +213,9 @@ elements:
           arrives before the timeout; what is wrong is the relationship between
           the sequence and real elapsed time, which neither a CRC nor a counter
           carries any information about. Closing it needs a timestamp inside the
-          protected frame. This mode is the largest single contributor to the
-          SPF term below, which is the right answer: an uncovered fault that can
-          violate the goal alone is exactly what that term is for.
+          protected frame. It is one of two contributors to the SPF term below,
+          which is the right answer: an uncovered fault that can violate the
+          goal alone is exactly what that term is for. The other is FM-DR-01.
       - id: FM-CO-04
         title: Link drops entirely
         lambda_fit: 120.0
@@ -238,17 +277,30 @@ elements:
         lambda_fit: 40.0
         safety_related: true
         can_violate_alone: true
-        mechanism: Torque feedback checked against the STO request
-        diagnostic_coverage: 0.90
-        challenged_by: [FLT-A01, FLT-A04]
+        mechanism: none
+        diagnostic_coverage: 0.0
+        challenged_by: []
+        note: >
+          Previously claimed a DC of 0.90 from torque feedback, challenged by
+          FLT-A01 and FLT-A04. Those are stalls: they exercise the demand, not
+          an output stage that ignores STO, and no fault here can inject that
+          because STO in the DUT is a software state. An untested DC is an
+          assumption wearing a number, so the claim is withdrawn. The fault tree
+          declares the same event, BE-STO-INEFFECTIVE, as an unattackable single
+          point. With the v3.1 current sensor, checking for current in STO is a
+          plausible mechanism; that is a design proposal, not evidence.
       - id: FM-DR-02
         title: Rotor stalls with torque commanded
         lambda_fit: 70.0
         safety_related: true
         can_violate_alone: true
-        mechanism: Stall detection into STO before the insulation limit
+        mechanism: Overload channel on measured current, backed by the winding limit
         diagnostic_coverage: 0.95
-        challenged_by: [FLT-A03]
+        challenged_by: [FLT-A01, FLT-A04]
+        note: >
+          FLT-A01 (locked rotor) trips OVERLOAD_I2T at step 2 and FLT-A04 (held
+          at static current) at step 54. Previously cited FLT-A03, which is
+          degraded cooling and involves no stall.
       - id: FM-DR-03
         title: Output stage degrades without tripping any threshold
         lambda_fit: 30.0

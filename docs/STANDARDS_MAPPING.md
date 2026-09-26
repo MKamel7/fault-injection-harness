@@ -209,8 +209,12 @@ assumption rather than a control.
 - **No hardware architectural metrics for this device.** SPFM, LFM and PMHF need
   an FMEDA over a real bill of materials with FIT rates. `catalog/fmeda.yaml`
   carries an explicitly educational one over a hypothetical BOM with invented
-  rates: it exercises the method, and no number in it describes this design.
-  PMHF is still absent, since it needs an exposure time and a mission profile
+  rates: it exercises the method, and no number in it describes this design
+  (it reports SPFM 90.7% and LFM 81.7%, both short of the ASIL D targets, and
+  both arithmetic over invented rates). Its element structure follows the v3.1
+  channels and the fault tree, so the current sensor under the overload channel
+  appears as a latent fault rather than the withdrawn estimator. PMHF is still
+  absent, since it needs an exposure time and a mission profile
   that a bench simulation does not have.
 - **Single fault at a time, plus five catalogued pairs.** Latent plus primary
   and dual point combinations are covered only as the pairs in

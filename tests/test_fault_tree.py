@@ -17,6 +17,10 @@ The load-bearing tests here are:
     above passed while guarding nothing.
   * `test_the_number_of_unattacked_double_failures_is_the_documented_one` stops
     the known gap growing quietly.
+  * `test_the_frame_paths_are_too_slow_to_credit_under_a_locked_rotor` and
+    `test_the_overload_channel_is_blind_to_degraded_cooling` hold the tree's
+    per-demand crediting to measurements. The tree is only as good as its claim
+    about which channels can act, so that claim is run, not asserted.
 """
 
 from __future__ import annotations
@@ -25,7 +29,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from dut_sim.motor_controller import OVERHEAT_LIMIT_C
 
+from fih.campaign import RunResult, run
 from fih.catalog import load_catalog
 from fih.dual_point import load_pairs
 from fih.fault_tree import (
@@ -37,10 +43,11 @@ from fih.fault_tree import (
     minimise,
 )
 
-#: Order-2 cut sets the dual-point campaign has never attacked. Three, all in
-#: the sensor branch. Written down so the gap cannot grow without this number
-#: changing, and named rather than counted so a reader knows which.
-DOCUMENTED_UNATTACKED_PAIRS = 3
+#: Order-2 cut sets the dual-point campaign has never attacked. One: the
+#: winding sensor reading low while the current sensor under-reads, under a
+#: locked rotor. Written down so the gap cannot grow without this number
+#: changing.
+DOCUMENTED_UNATTACKED_PAIRS = 1
 
 
 def _known_faults() -> set[str]:
@@ -169,6 +176,7 @@ def test_the_demand_is_not_part_of_the_cut_sets() -> None:
     events = set(load_tree().basic_events())
     assert "BE-STALL" not in events
     assert "BE-OVERLOAD" not in events
+    assert "BE-COOLING" not in events
 
 
 def test_there_are_single_point_cut_sets_at_all() -> None:
@@ -213,7 +221,7 @@ def test_the_common_cause_event_is_a_single_point_of_failure() -> None:
 
     Two channels failing together is an order-2 cut set, which is the value
     redundancy buys. A common cause defeats all of them at once, so it sits at
-    order 1 and the majority vote buys nothing against it.
+    order 1 and having several channels buys nothing against it.
     """
     tree = load_tree()
     assert frozenset({"BE-CCF-SUPPLY"}) in tree.by_order(1)
@@ -224,23 +232,67 @@ def test_the_common_cause_event_is_a_single_point_of_failure() -> None:
 def test_the_redundant_sensor_channels_need_two_failures() -> None:
     """The other half of the same point: redundancy is visible as order 2."""
     pairs = load_tree().by_order(2)
-    assert frozenset({"BE-TA-STUCK", "BE-TB-STUCK"}) in pairs
+    assert frozenset({"BE-TA-LOW", "BE-TB-LOW"}) in pairs
 
 
-def test_the_documented_residual_reaches_the_top_event_alone() -> None:
-    """FLT-T07's gap is not academic: clock drift is a single point of failure."""
+def test_the_tree_models_the_channels_the_device_has() -> None:
+    """The estimator was withdrawn in v3.0 and the device never voted.
+
+    The previous tree modelled a 2-of-3 majority over it, so every cut set
+    through the sensing branch described a design that did not exist.
+    """
+    events = set(load_tree().basic_events())
+    assert "BE-EST-WRONG" not in events
+    assert {"BE-TA-LOW", "BE-TB-LOW", "BE-CUR-LOW"} <= events
+
+
+def test_the_temperature_common_cause_is_a_single_point_under_cooling() -> None:
+    """The diverse channel does not cover heat that is not carried by current.
+
+    Under a stall the overload channel catches both temperature sensors lying,
+    which is why FLT-S05 passes. Under degraded cooling it has nothing to
+    integrate, so the same common cause reaches the top event alone.
+    """
     tree = load_tree()
-    assert frozenset({"BE-DRIFT"}) in tree.by_order(1)
-    assert "FLT-T07" in tree.basic_events()["BE-DRIFT"].challenged_by
+    assert frozenset({"BE-CCF-TEMP"}) in tree.by_order(1)
+    assert "FLT-S05" in tree.basic_events()["BE-CCF-TEMP"].challenged_by
+
+
+# --- the per-demand crediting, measured rather than asserted -----------------
+def _run_pair(latent: str, primary: str) -> RunResult:
+    catalog = {f.id: f for f in load_catalog()}
+    return run(catalog[primary], latent=catalog[latent])
+
+
+def test_the_frame_paths_are_too_slow_to_credit_under_a_locked_rotor() -> None:
+    """Why the locked rotor branch credits only the winding and overload channels.
+
+    With both of those defeated the cross check does fire, but only once the
+    winding is already past its insulation limit. Detection is not protection.
+    """
+    result = _run_pair("FLT-S09", "FLT-S01")
+    assert result.detected
+    assert result.true_temperature_c > OVERHEAT_LIMIT_C
+
+
+def test_the_overload_channel_is_blind_to_degraded_cooling() -> None:
+    """Why the cooling branch does not credit the overload channel.
+
+    Both temperature sensors lying while cooling is degraded goes undetected,
+    which is what puts BE-CCF-TEMP at order 1.
+    """
+    result = _run_pair("FLT-S05", "FLT-A03")
+    assert not result.detected
+    assert result.overheated_undetected
 
 
 # --- the open finding, held at its documented size ---------------------------
 def test_the_number_of_unattacked_double_failures_is_the_documented_one() -> None:
-    """The tree found three double failures the pair campaign never attacked.
+    """The tree found a double failure the pair campaign never attacked.
 
     That is a real finding and it is recorded rather than closed by inventing
     pairs. This test exists so the gap cannot GROW silently: add a branch that
-    creates a fourth and this number has to be changed deliberately.
+    creates another and this number has to be changed deliberately.
     """
     result = coverage(load_tree(), _known_faults(), _attacked_pairs())
     assert len(result.unmapped_pairs) == DOCUMENTED_UNATTACKED_PAIRS, (
@@ -250,7 +302,7 @@ def test_the_number_of_unattacked_double_failures_is_the_documented_one() -> Non
 
 
 def test_a_pair_covering_a_cut_set_is_recognised() -> None:
-    """Otherwise the unmapped count is three because nothing ever matches."""
+    """Otherwise the unmapped count is right only because nothing matches."""
     tree = FaultTree(Event("TOP", "t", "OR", (
         Event("G", "g", "AND", (
             Event("BE-P", "p", challenged_by=("FLT-S07",)),

@@ -24,7 +24,7 @@ are compared on the same fault set.
 
 ```
 29 faults   24 detected in time   0 detected late   5 residual   5 catalogued pairs
-323 tests   100% branch coverage   ruff + mypy strict   these counts gated in CI
+326 tests   100% branch coverage   ruff + mypy strict   these counts gated in CI
 3 of 11 safety requirements currently NOT met, each named with why
 ```
 
@@ -224,13 +224,22 @@ being honest about what a real one would need is worth demonstrating too.
 
 | | |
 |---|---|
-| **SPFM 93.8%** | against the ASIL D target of 99%, which it does **not** meet |
-| **LFM 87.9%** | against the ASIL D target of 90%, which it does **not** meet |
-| **16 modes** | 725 FIT total, of which 690 safety related and 35 safe |
+| **SPFM 90.7%** | against the ASIL D target of 99%, which it does **not** meet |
+| **LFM 81.7%** | against the ASIL D target of 90%, which it does **not** meet |
+| **17 modes** | 725 FIT total, of which 690 safety related and 35 safe |
 
 A synthetic analysis that happened to clear every target would be the least
 believable possible outcome, so the shipped numbers are reported as they fall
 and `test_fmeda.py` asserts they still miss.
+
+Both figures went **down** when the FMEDA was brought in line with the v3.1
+design (they were 93.8% and 87.9%). The element for the withdrawn estimator is
+now the current sensor under the overload channel, and nothing detects that
+sensor failing, so its modes are latent. The output stage mode had claimed 90%
+coverage on the strength of two stall faults that never exercise it; with no
+fault able to test it, the claim was withdrawn and its whole rate is now
+single point. Moving the winding sensor modes to multiple point, which the fault
+tree requires, pulled SPFM back up, but not by as much.
 
 > **"Residual" means two different things in this repository, and the docs gate
 > caught them colliding.** In `catalog/faults.yaml` a *residual fault* is one the
@@ -240,12 +249,13 @@ and `test_fmeda.py` asserts they still miss.
 > is a rate rather than a count. They are not the same idea and this note is
 > here so nobody adds them together.
 
-**The largest single-point contributor is FM-CO-03, uniform latency growth with
-the frame sequence intact.** That is the same gap the campaign found from the
-other direction, by injecting FLT-T07 and watching a counter and timeout fail to
-see it. One route is qualitative and one is rate-based, they were built
-independently, and they agree. A test asserts they keep agreeing, because if the
-two ever diverge one of them is wrong and it matters which.
+**The single-point term is made of two gaps, and both are named elsewhere.**
+FM-CO-03, uniform latency growth with the frame sequence intact, is the gap the
+campaign found by injecting FLT-T07 and watching a counter and timeout fail to
+see it. FM-DR-01, torque left on after STO, is the output stage event the fault
+tree declares unattackable. A test asserts every uncovered single-point mode
+traces to one or the other, because an SPF contribution that no other artefact
+names is a gap nobody has looked at.
 
 ### The distinction that is easy to lose
 
@@ -278,32 +288,59 @@ event and decomposes downwards, so its minimal cut sets are a list the campaign
 can be held against. One artefact justifies what is there; this one looks for
 what is missing.
 
+The top event is HAZ-03, the winding passing its insulation limit. The device
+does not vote: any thermal channel that fires stops the drive. So protection
+fails only when **every channel that could have fired in time** has failed, and
+the tree is an AND over those channels (winding sensor, the frame sensor's cross
+check and limit, and the overload channel on the current sensor), plus the
+common causes and the output stage.
+
 | | |
 |---|---|
-| **10 basic events** | 10 minimal cut sets: **7 of order 1**, 3 of order 2 |
-| **6 of 7** single points of failure | challenged by an injected fault |
-| **1 of 7** | `BE-CCF-SUPPLY`, declared unattackable by this harness, with the reason |
-| **3 order-2 cut sets** | **none attacked by the dual-point campaign.** An open finding |
+| **6 basic events** | 5 minimal cut sets: **3 of order 1**, 2 of order 2 |
+| **1 of 3** single points of failure | challenged by an injected fault (`BE-CCF-TEMP`, by FLT-S05) |
+| **2 of 3** | `BE-CCF-SUPPLY` and `BE-STO-INEFFECTIVE`, declared unattackable by this harness, with the reason |
+| **2 order-2 cut sets** | 1 mapped to catalogued pairs, **1 unattacked.** An open finding |
 
 ### The result worth reading
 
-**`BE-CCF-SUPPLY` is an order-1 cut set.** Redundancy shows up in a fault tree as
-order-2 cut sets: two channels have to fail together, which is exactly what the
-2-of-3 majority over channels A, B and the estimator buys. A common cause, a
-shared supply rail or a shared thermal path, defeats all three at once and
-therefore sits at **order 1**. The majority vote buys nothing against it.
+**Which channels count depends on the demand, and that is where the single
+points come from.** The frame is a large thermal mass and the overload channel
+integrates current, so a locked rotor is too fast for the frame paths and
+degraded cooling is invisible to the overload channel. Each demand is a gate over
+the channels it can credit, and the demand itself stays out of the cut sets.
 
-That is why a redundant design can still have a single point of failure, and it
-is invisible in the traceability chain, which sees three healthy channels each
-with faults attacking them. Closing it is an architecture question, independent
-supplies and diverse sensing elements, not a test question, so it is declared
-rather than quietly absent.
+**`BE-CCF-TEMP` is an order-1 cut set.** One cause taking both temperature
+sensors is caught under a stall, because the overload channel sees the current,
+which is why FLT-S05 passes in the campaign. Under degraded cooling the current
+is rated and the accumulator never grows, so the same common cause reaches the
+top event alone: both sensors stuck with cooling degraded runs to 204 C
+undetected. A test runs that combination rather than asserting it. The
+diversity argument holds for heat that comes from current and not for heat that
+does not.
 
-**The tree also found three double failures nobody has attacked**, all in the
-sensor branch: A with B, A with the estimator, and B with the estimator. The
-five catalogued pairs in `catalog/dual_point.yaml` all involve `FLT-S07` or
-`FLT-S09` and none of them covers these. That gap is recorded, not closed by
-inventing pairs, and a test holds it at exactly three so it cannot grow quietly.
+**`BE-CCF-SUPPLY` is an order-1 cut set** for the older reason. A shared supply,
+reference or ADC under the temperature AND current sensors defeats every channel
+under every demand. DP-05 shows its consequence as two faults, reaching 1329 C,
+but this harness cannot inject it as one event. **`BE-STO-INEFFECTIVE`** is the
+third: STO in the device is a software state, so an output stage that keeps
+conducting cannot be injected at all.
+
+**The open double failure is the winding sensor reading low with the current
+sensor under-reading, under a locked rotor.** Measured: the cross check does
+fire, at step 28, with the winding already at 187.5 C. The other order-2 cut set,
+both temperature sensors reading low, is mapped to DP-01, DP-02 and DP-04, with a
+caveat the mapping code cannot see: those pairs ran under a stall or an overload,
+where the overload channel caught them, and the cut set bites under degraded
+cooling. A test holds the unattacked count at one so it cannot grow quietly.
+
+**This tree replaced one that modelled a design that did not exist.** It
+described a 2-of-3 majority over two sensors and a predicted-temperature
+estimator, which was withdrawn in v3.0, and it carried communication faults that
+cannot overheat a winding whose protection is local. That version reported 7
+single points of failure, 6 of them attacked. The honest count is 3, with 1
+attacked, and the difference is not an improvement or a regression in the
+device: it is the tree catching up with it.
 
 ### A modelling error worth recording
 
@@ -320,6 +357,12 @@ required, not a failure of it. The tree is now scoped to the protection function
 **on demand**, the demand is recorded separately so it stays visible, and order 1
 means what it is supposed to mean. A test asserts the demand events are not in
 the cut sets.
+
+The v3.1 rebuild keeps that rule and adds its complement. The demand still
+decides **which channels can act**, so each demand is a gate over the channels
+it credits, never a basic event. Leaving that out is the opposite error:
+crediting the overload channel against degraded cooling it cannot see, which is
+exactly how `BE-CCF-TEMP` would have been hidden at order 2.
 
 ## 💡 What I learned
 

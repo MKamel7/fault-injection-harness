@@ -254,6 +254,15 @@ its entire rise faster than the frame can follow. A catalog that exercised only
 the stall made the redundancy look simply inadequate; it is adequate for the
 likelier hazard and inadequate for the fastest one.
 
+The same per-condition reading decides the fault tree for HAZ-03
+(`catalog/fault_tree.yaml`). The frame paths are too slow to credit under a
+locked rotor, and the overload channel is blind under degraded cooling, because
+the current there is rated. Each condition is therefore a gate over the channels
+it can credit, and the result is **3 single points of failure and 2 double
+failures**. The condition that matters most is the slowest one: under degraded
+cooling, a common cause taking both temperature sensors reaches the insulation
+limit alone.
+
 ### What the v1.5 omission cost, stated plainly
 
 Adding redundancy halves exposure to a missed detection and **doubles exposure

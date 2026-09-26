@@ -163,9 +163,10 @@ def run(fault: Fault, steps: int | None = None,
     # drive proves nothing, a safe state cannot be hammered until the drive is
     # in one, and a lying temperature sensor is only hazardous when the winding
     # is ACTUALLY cooking. Free running at 5000 rpm the winding equilibrates
-    # around 62 C, well under the 140 C limit, so injecting a thermal sensor
-    # fault there would measure a sensor lying about a motor that was never in
-    # danger and would overstate nothing but also prove nothing.
+    # around 139.7 C, under the 149.1 C trip and the 155 C insulation limit, so
+    # injecting a thermal sensor fault there would measure a sensor lying about
+    # a motor that was never in danger and would overstate nothing but also
+    # prove nothing.
     if fault.precondition == "stalled_rotor":
         dut.inject_stall(True)
     elif fault.precondition == "overloaded_rotor":

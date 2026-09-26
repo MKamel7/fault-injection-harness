@@ -9,21 +9,40 @@
 #
 # THE GATE THIS FILE FEEDS. An order-1 cut set is a single point of failure: one
 # basic event, alone, reaches the top event. Every one of those must be
-# challenged by an injected fault, or the build fails. Order-2 cut sets need two
-# faults and are the dual-point campaign's territory, so each one is either
-# mapped to a catalogued pair in `catalog/dual_point.yaml` or declared
-# unattacked with a reason. Nothing is allowed to be silently absent.
+# challenged by an injected fault, or declared unattackable with a reason, or
+# the build fails. Order-2 cut sets need two faults and are the dual-point
+# campaign's territory, so each one is either mapped to a catalogued pair in
+# `catalog/dual_point.yaml` or counted as unattacked. Nothing is allowed to be
+# silently absent.
 #
 # BASIC EVENTS CARRY THEIR FAULT IDS, which is what "mapping the campaign onto
 # the cut sets" means in practice. `challenged_by: []` is legal and is a
-# declaration, not an oversight: BE-CCF-SUPPLY is there precisely because this
-# harness cannot inject it.
+# declaration, not an oversight: it must come with `unattacked_reason`.
 #
 # GATE SEMANTICS. `OR` means any child is sufficient. `AND` means all children
-# are required. There is no voting gate: the 2-of-3 majority over the two sensor
-# channels and the estimator is written out as the three AND pairs it expands
-# to, because an expanded tree is one a reviewer can check by eye and a voting
-# gate is one they have to trust the code about.
+# are required. There is no voting gate, and since DUT v3.1 there is no vote in
+# the device either: ANY thermal channel that fires stops the drive. So the
+# protection fails only when EVERY channel that could have fired in time has
+# failed, which is an AND over the channels. An earlier version of this file
+# modelled a 2-of-3 majority over two sensors and a predicted-temperature
+# estimator. The estimator was withdrawn in v3.0 and the device never voted, so
+# that tree described a design that did not exist.
+#
+# A channel gate used under several demands is written once and reused with a
+# YAML anchor (`&winding`, `*winding`). The loader sees identical nodes, and the
+# ids are what tell the cut set algebra they are the same events.
+#
+# THE CHANNELS, as `_thermal_trip_reason` in the pinned DUT evaluates them:
+#
+#   SENSOR_DISAGREEMENT  winding and frame sensors contradict each other while
+#                        current flows. Needs both sensors.
+#   OVERTEMP_WINDING     the winding sensor reaches the trip.
+#   OVERLOAD_I2T         an accumulator over the CURRENT SENSOR crosses its
+#                        budget. Fails whenever that sensor under-reads.
+#   OVERTEMP_HOUSING     the frame sensor reaches its limit, and ONLY while the
+#                        two channels agree. Suppressed under disagreement, so it
+#                        is not independent of the cross check: both hang on the
+#                        frame sensor and are drawn below as one frame path.
 
 version: 1
 
@@ -34,126 +53,166 @@ version: 1
 # at all. The single-point-of-failure gate passed while guarding nothing, which
 # is the exact shape of check this repository argues against.
 #
-# So the tree is scoped to the protection function ON DEMAND, which is also how
-# IEC 61508 and ISO 26262 treat a safety function: the demand is the operating
-# condition under which the function is required, not a failure of it. The
-# demand is recorded below as a precondition so it stays visible, and the cut
-# sets underneath are failures of protection alone. Order 1 now means what it
-# is supposed to mean.
+# So the demand never appears as a basic event. What the rebuild for v3.1 had to
+# add is that the demand still decides WHICH CHANNELS COUNT. The frame node is a
+# large thermal mass and the overload channel integrates current, so:
+#
+#   locked rotor       too fast for the frame. The cross check fires late and the
+#                      frame limit later still, so only the winding sensor and
+#                      the overload channel can act in time.
+#   sustained overload every channel acts in time.
+#   degraded cooling   heat arrives at rated current, so the overload
+#                      accumulator never grows. Only the temperature channels
+#                      can act.
+#
+# Each demand is therefore a GATE over the channels it credits, never a basic
+# event, and the cut sets underneath stay failures of protection alone. That
+# keeps the lesson above and avoids the opposite error, which is crediting a
+# channel under a demand it cannot see.
 
 demand:
   title: Excess heat is generated in the winding
   note: >
     The condition under which protection is required. NOT part of the cut sets.
-    Both routes are real and both are exercised by the campaign, which is why
-    they are named here rather than dropped.
+    Each route is real, is exercised by the campaign, and selects which channels
+    the tree may credit below.
   causes:
     - id: BE-STALL
-      title: Rotor stalls while torque is commanded
-      challenged_by: [FLT-A03]
+      title: Rotor blocked while torque is commanded
+      challenged_by: [FLT-A01, FLT-A04]
     - id: BE-OVERLOAD
-      title: Sustained current above the rated duty
-      challenged_by: [FLT-C01]
+      title: Sustained current above the rated duty, rotor still turning
+      challenged_by: [FLT-S08]
+      note: >
+        FLT-S08 is the only catalogued fault run under the overloaded_rotor
+        precondition. The fault it injects is a sensor lie; the precondition is
+        the demand.
+    - id: BE-COOLING
+      title: Cooling degraded, winding hot at rated current
+      challenged_by: [FLT-A03]
 
 top_event:
   id: TOP
-  title: Protection fails to remove torque before the insulation limit
-  hazard: HAZ-02
-  goal: SG-02
+  title: Winding exceeds its insulation limit
+  hazard: HAZ-03
+  goal: SG-03
   note: >
-    The thermal path is chosen over "uncontrolled torque" because it is the one
-    this device models in detail: the winding has a derived time constant, a
-    rated duty and a documented insulation limit, so the branches below can be
-    argued rather than asserted. Read as: GIVEN a thermal demand, these are the
-    ways the drive fails to stop.
+    Read as: GIVEN a thermal demand, these are the ways the winding passes
+    155 C. Communication and liveness faults are not in this tree. They lead to
+    HAZ-02 and HAZ-04, not to this one, because every thermal channel is local
+    to the drive and trips whatever the link is doing. The previous tree carried
+    them here, which is how clock drift came to be reported as a single point of
+    failure for overtemperature.
   gate: OR
   children:
 
-    # --- sensing --------------------------------------------------------
-    - id: G-SENSE
-      title: The temperature the controller believes is wrong
-      note: >
-        Three channels with a 2-of-3 majority, so two must be wrong together.
-        Written out as the pairs it expands to rather than as a voting gate,
-        because an expanded tree is one a reviewer can check by eye.
+    # --- detection: no channel fires in time ------------------------------
+    - id: G-DETECT
+      title: No thermal channel trips in time
       gate: OR
       children:
-        - id: G-SENSE-AB
-          title: Both measured channels wrong together
-          gate: AND
-          children:
-            - id: BE-TA-STUCK
-              title: Channel A stuck at a plausible value
-              challenged_by: [FLT-S01, FLT-S03]
-            - id: BE-TB-STUCK
-              title: Channel B stuck at a plausible value
-              challenged_by: [FLT-S06]
-        - id: G-SENSE-AE
-          title: Channel A and the estimator wrong together
-          gate: AND
-          children:
-            - id: BE-TA-STUCK
-              title: Channel A stuck at a plausible value
-              challenged_by: [FLT-S01, FLT-S03]
-            - id: BE-EST-WRONG
-              title: Model estimator diverges beyond its accuracy budget
-              challenged_by: [FLT-S04]
-        - id: G-SENSE-BE
-          title: Channel B and the estimator wrong together
-          gate: AND
-          children:
-            - id: BE-TB-STUCK
-              title: Channel B stuck at a plausible value
-              challenged_by: [FLT-S06]
-            - id: BE-EST-WRONG
-              title: Model estimator diverges beyond its accuracy budget
-              challenged_by: [FLT-S04]
 
-        # --- common cause, and the reason this branch matters -------------
-        - id: BE-CCF-SUPPLY
-          title: One cause defeats every temperature channel at once
-          challenged_by: []
-          unattacked_reason: >
-            A shared supply rail, a shared reference or a common thermal path
-            defeats all three channels together. This harness injects at the
-            signal level and has no model of a shared resource, so it CANNOT
-            inject this. It is the most important entry in this file: it
-            collapses an order-2 cut set into an order-1 one, so the majority
-            vote buys nothing against it. Closing it is an architecture
-            question, independent supplies and diverse sensing elements, not a
-            test question.
-
-    # --- communication --------------------------------------------------
-    - id: G-COMMS
-      title: The command channel fails without the watchdog acting
-      gate: OR
-      children:
-        - id: BE-STALE
-          title: Stale or repeated frames accepted as evidence of liveness
-          challenged_by: [FLT-C04, FLT-C06, FLT-T06]
-        - id: BE-DRIFT
-          title: Uniform latency growth with the frame sequence intact
-          challenged_by: [FLT-T07, FLT-C08]
+        - id: G-D-STALL
+          title: "Locked rotor: winding and I2t fail"
           note: >
-            Catalogued residual. Every frame is individually perfect and
-            arrives before the timeout; what is wrong is the relationship
-            between the sequence and elapsed time, which neither a CRC nor a
-            counter carries information about.
-        - id: BE-LINK
-          title: Link lost and the watchdog fails to time out
-          challenged_by: [FLT-C03, FLT-T01]
+            The frame paths are not credited here. Under locked rotor current the
+            winding covers its whole permitted rise before the frame diverges.
+            Measured: winding sensor stuck (FLT-S01) with the current sensor
+            stuck (FLT-S09) is caught by SENSOR_DISAGREEMENT at step 28 with the
+            winding at 187.5 C, past the limit. The DUT documents the frame limit
+            alone tripping at step 50 with the winding at 643 C.
+          gate: AND
+          children:
+            - &winding
+              id: G-WINDING
+              title: Winding sensor channel does not trip
+              gate: OR
+              children:
+                - id: BE-TA-LOW
+                  title: Winding sensor reads plausibly low
+                  challenged_by: [FLT-S01, FLT-S03, FLT-S08]
+                - &ccf_temp
+                  id: BE-CCF-TEMP
+                  title: One cause takes both thermal sensors
+                  challenged_by: [FLT-S05]
+                  note: >
+                    A shared supply, reference or harness for the two thermal
+                    sensors. Injected as FLT-S05, both sensors stuck at 40 C.
+            - &overload
+              id: G-OVERLOAD
+              title: Overload (I2t) channel does not trip
+              note: >
+                The accumulator integrates the CURRENT SENSOR, not plant current,
+                so the channel fails whenever that sensor under-reads.
+              gate: OR
+              children:
+                - id: BE-CUR-LOW
+                  title: Current sensor under-reads
+                  challenged_by: [FLT-S09, FLT-S10]
 
-    # --- control ---------------------------------------------------------
-    - id: G-CONTROL
-      title: The controller does not hold the safe state
-      gate: OR
-      children:
-        - id: BE-STO-LEAK
-          title: STO exited without an explicit reset
-          challenged_by: [FLT-T03, FLT-T04, FLT-T02]
-        - id: BE-TORQUE-STUCK
-          title: Torque remains enabled after STO is commanded
-          challenged_by: [FLT-A01, FLT-A04]
-        - id: BE-DEGRADE
-          title: Output stage degrades without tripping any threshold
-          challenged_by: [FLT-A02]
+        - id: G-D-OVERLOAD
+          title: "Overload: every channel fails"
+          note: >
+            Every channel is credited, so this branch contributes no minimal cut
+            set of its own: each of its combinations contains one from a branch
+            beside it. It is drawn anyway, because leaving it out would look like
+            an unexamined demand.
+          gate: AND
+          children:
+            - *winding
+            - &frame
+              id: G-FRAME
+              title: Cross check and frame limit silent
+              note: >
+                SENSOR_DISAGREEMENT and OVERTEMP_HOUSING share the frame sensor,
+                and the housing limit is suppressed whenever the channels
+                disagree, so they fail together. With the winding sensor already
+                reading low, the cross check stays quiet only if the frame reads
+                low as well.
+              gate: OR
+              children:
+                - id: BE-TB-LOW
+                  title: Frame sensor reads plausibly low
+                  challenged_by: [FLT-S07]
+                - *ccf_temp
+            - *overload
+
+        - id: G-D-COOLING
+          title: "Cooling lost: winding and frame fail"
+          note: >
+            The overload channel is not credited here. Heat arrives at rated
+            current, so the accumulator never grows: FLT-A03 ends with it at
+            exactly zero and is caught by OVERTEMP_HOUSING at step 770. This is
+            the branch that puts BE-CCF-TEMP at order 1. Measured: both
+            temperature sensors stuck (FLT-S05) under degraded cooling runs to
+            204 C undetected.
+          gate: AND
+          children:
+            - *winding
+            - *frame
+
+    # --- common cause across every sensing path -----------------------------
+    - id: BE-CCF-SUPPLY
+      title: One cause takes every sensor at once
+      challenged_by: []
+      unattacked_reason: >
+        A shared supply rail, reference or ADC under both temperature sensors
+        AND the current sensor defeats every channel under every demand. This
+        harness injects at the signal level and has no model of a shared
+        resource, so it cannot inject this as ONE event. DP-05 shows its
+        consequence as two separate faults (current sensor stuck plus both
+        temperature sensors stuck), which ran to 1329 C undetected. Closing it is
+        an architecture question, independent supplies and conversion paths,
+        not a test question.
+
+    # --- reaction: a trip is decided and torque is not removed --------------
+    - id: BE-STO-INEFFECTIVE
+      title: Trip decided, torque not removed
+      challenged_by: []
+      unattacked_reason: >
+        In the DUT, STO is a software state that forces the speed to zero. There
+        is no model of a power stage or an STO path that could keep conducting,
+        so nothing here can inject this. FLT-T04 and FLT-T03 test the software
+        latch (commands refused in STO, a reset re-trips), which is SR-07 and
+        SR-08 and does not reach this event. The previous tree mapped it to two
+        stall faults, which exercise the demand and not the output stage.
