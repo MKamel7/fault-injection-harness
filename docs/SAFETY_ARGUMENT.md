@@ -53,7 +53,7 @@ falsified by running the campaign would not be worth making.
 | Evidence | Where | What it supports |
 |---|---|---|
 | Hazard analysis: 8 hazards, 7 safety goals, 11 safety requirements, each with an FTTI budget | `docs/HAZARD_ANALYSIS.md` | The faults are derived, not invented |
-| Fault catalog: 27 entries across sensor, actuator, communication and timing, with three outcomes: detected, detected late, residual | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
+| Fault catalog: 29 entries across sensor, actuator, communication and timing, with three outcomes: detected, detected late, residual | `catalog/faults.yaml` | The fault set is data, reviewable by someone who does not read Python |
 | Campaign: one fault per run, fresh device, fixed step budget, no randomness | `src/fih/campaign.py` | Reproducibility. The same fault gives the same result, asserted by test |
 | Latent plus primary pair campaign, with both members also run alone | `catalog/dual_point.yaml`, `report/dual_point.md` | A latent fault is defined by the difference, so the difference is what is reported |
 | Bidirectional traceability, build fails on a gap in either direction | `src/fih/traceability.py`, `report/traceability.md` | Every requirement is verified and every fault answers a requirement |
@@ -92,7 +92,7 @@ suppressed so the run is not cut short by the thing being budgeted:
 |---|---|---|
 | Locked rotor | 4.29x rated | **22** |
 | Sustained overload, still turning | 2x rated | **136** |
-| Cooling degraded to a third of nominal | rated | **1041** |
+| Cooling degraded to 0.35 of nominal | rated | **1041** |
 
 Earlier versions quoted one number, 20 steps, because somebody picked it, and
 later quoted the locked rotor figure as though it applied to all three. Budgets
@@ -131,9 +131,12 @@ a shared reference, or simply both sensors being dead.
 | FLT-S05, **both** sensors lying (common cause) | never detected | step 2, 51.6 C |
 | DP-01, lying sensor plus latently dead frame | never detected | step 2, 51.6 C |
 
-A locked rotor is now treated as what it actually is, an **overcurrent** event:
-the drive stops it with the winding still near ambient rather than waiting for a
-thermal channel to notice something.
+A locked rotor at maximum current is now treated as what it actually is, an
+**overcurrent** event: the drive stops it at step 2 with the winding at 51.6 C
+rather than waiting for a thermal channel to notice something. Not every stall
+is like that. FLT-A04 blocks the rotor at the data sheet's static current, 1.2x
+rated, and is a slow thermal case, caught by the overload channel at step 54 with
+the winding at 60 C.
 
 ### It replaced a predicted-temperature channel, and why that failed is the sharpest result here
 
@@ -146,7 +149,8 @@ solving the two bounding constraints gave the reason.
 Under-predict and the winding passes the limit before the estimate reaches the
 threshold. Over-predict and the estimate reaches the threshold during ordinary
 rated duty, tripping a healthy machine. A class 155 machine at a 100 K rated rise
-**normally runs at 87 percent of its absolute insulation limit**, and once single
+**normally uses 87 percent of its headroom to the insulation limit** (100 K of
+115 K above ambient), and once single
 step sampling granularity is paid for out of what remains, the tolerable
 prediction error came out at **0.00 percent**. It had to be exactly right, which
 no real estimator is.
@@ -160,10 +164,11 @@ why real drives protect this way.
 
 ### What it costs, which is the half usually left out
 
-The overload channel knows only what was **commanded**, so it cannot see the
-plant. FLT-A03 degrades real cooling to a third of nominal: the machine runs hot,
-the command is unchanged, and the accumulator sits at exactly zero. Only a
-measurement notices, and the frame sensor does, after 1041 steps.
+The overload channel knows only the **current**, so it cannot see the plant's
+cooling. FLT-A03 degrades real cooling to 0.35 of nominal: the machine runs hot,
+the current is unchanged, and the accumulator sits at exactly zero. Only a
+temperature measurement notices, and the frame sensor does, at step 770 against
+a 1041 step budget.
 
 So neither kind of channel is sufficient. The pair is not redundancy, it is
 coverage of two disjoint failure classes, and that is what diversity means. An
@@ -174,9 +179,10 @@ argument, which is why FLT-A03 is catalogued even though it passes.
 
 Diversity means two failure classes are disjoint. It does not mean their union is
 everything. Combining the overload channel's blind spot with the sensors' own,
-a cooling degradation mild enough not to trip on its own, plus a lying winding
-sensor, plus a dead frame channel, still drives the winding well past its limit
-undetected. That is **three** faults, so this harness cannot express it as a
+cooling degraded to 0.7 of nominal, plus a lying winding sensor, plus a dead
+frame channel, drives the winding to about 165 C, past its 155 C limit,
+undetected. The cooling fault alone is caught by the frame sensor, so it takes
+all three. That is **three** faults, so this harness cannot express it as a
 catalogued pair, and it is recorded here rather than left to be discovered.
 
 ### Three outcomes, and a universal reading of satisfaction
@@ -236,7 +242,8 @@ requirements are only correct relative to a context, and this one has none.
 
 The device under test, the hazard analysis, the safety requirements, the fault
 catalog, the acceptance criteria and the tests were all produced by **one author
-in one effort**. Nothing has been reviewed by a second party.
+in one effort**. Until the reviews recorded in `docs/REVIEW.md`, nothing had
+been reviewed by a second party.
 
 Both standards treat this as a first order concern rather than a detail. ISO
 26262 defines confirmation measures, a confirmation review, a functional safety
@@ -252,7 +259,7 @@ reviews it.
 ### The oracle was adjusted after seeing the results
 
 Worth stating plainly, because it is the methodological weakness a reviewer would
-find on their own. On four occasions the expected result was changed *after*
+find on their own. On six occasions the expected result was changed *after*
 observing the actual one:
 
 - FLT-T04's FTTI was raised from 1 step to 20, once the run showed the safe state
@@ -288,9 +295,9 @@ no HAZOP guide word sweep, no FMEA worksheet, no fault tree, no STPA control
 structure, and no review. Asked "how do you know you have not missed a hazard",
 the honest answer is that we do not.
 
-The same applies to the fault set. Twenty faults were chosen because they were
-considered interesting, not sampled from a defined fault space, so **the 23 of 27
-figure describes this catalog and estimates nothing**. There is no confidence
+The same applies to the fault set. The twenty nine faults were chosen because
+they were considered interesting, not sampled from a defined fault space, so
+**the 24 of 29 figure describes this catalog and estimates nothing**. There is no confidence
 interval on it and none could be computed without a sampling argument.
 
 ### There is no acceptance criterion
@@ -371,9 +378,11 @@ second temperature source is credited with above:
 **Both rows are HISTORICAL**, measured against the two sensor design. They are
 kept because the finding is what motivated the third channel, and deleting the
 case would delete the evidence that the fix mattered. Against the current design
-all four pairs are handled, with identical results whether or not the latent
-fault is present, because the overload channel reads no sensor. `report/dual_point.md`
-is the current record.
+all four latent pairs are handled, with identical results whether or not the
+latent fault is present, because the overload channel reads neither temperature
+sensor. The fifth pair, DP-05, is a dual point fault (a stuck current sensor plus
+both temperature sensors lying) and it is not handled: the winding runs away
+undetected. `report/dual_point.md` is the current record.
 
 FLT-S08 is the entry that justifies having the second source at all: caught in
 time, inside the limit. A latent fault removes exactly that. So the second
@@ -390,12 +399,15 @@ something that needed the mechanism it removed.
 
 What remains out of scope: combinations beyond two, and any quantity resembling
 an ISO 26262 **latent fault metric**, which is computed over a real hardware
-architecture with failure rates in FIT. What this measures is whether four
+architecture with failure rates in FIT. What this measures is whether five
 specific catalogued combinations defeat the design.
 
 **The DUT's parameters are grounded, its dynamics are not.** Speeds, currents,
-torques and the temperature limit come from a Siemens SIMOTICS S-1FK2 datasheet,
-archived in `docs/datasheets/` and labelled `[DS]` at each constant. The thermal
+torques and rotor inertia come from a Siemens SIMOTICS S-1FK2 datasheet,
+archived in P1's `docs/datasheets/` and labelled `[DS]` at each constant. The
+thermal figures (40 C ambient, 100 K rated rise, the 155 C class F limit) are
+not in that article datasheet; they come from the S-1FK2 series documentation
+and are labelled `[SERIES]`. The thermal
 and speed *response* constants are fitted or illustrative and are labelled
 `[DERIVED]` or `[ILLUSTRATIVE]`. That split is stated in P1's
 `docs/REFERENCES.md` rather than blurred, because a model that looks grounded

@@ -349,8 +349,8 @@ def dual_point_markdown(pairs: tuple[Pair, ...],
         "This is **not** an ISO 26262 latent fault metric. That is a quantity "
         "over a real hardware architecture with failure rates in FIT, and there "
         "are none here. What this measures is whether specific catalogued "
-        "combinations defeat the design, which is a statement about these four "
-        "pairs and nothing wider.",
+        "combinations defeat the design, which is a statement about these "
+        f"{len(pairs)} pairs and nothing wider.",
         "",
     ]
     return "\n".join(lines) + "\n"

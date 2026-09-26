@@ -93,7 +93,7 @@ You are not restricted to the above. If something looks off, it probably is.
 - No hardware comparison. Nothing has been run against a real motor.
 - The thermal *time constant* is deliberately compressed and cannot be validated,
   so all latencies are in simulation steps and never in seconds.
-- A three fault combination (mild cooling degradation plus a lying winding sensor
+- A three fault combination (cooling degradation plus a lying winding sensor
   plus a dead frame sensor) defeats the design. The harness only injects pairs,
   so this is documented rather than tested.
 - No FMEDA over anything real, so no diagnostic coverage, SPFM or LFM figures

@@ -1,8 +1,8 @@
 # Fault injection harness
 
-[![CI](https://github.com/MKamel7/fault-injection-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/MKamel7/fault-injection-harness/actions)
+[![CI](https://github.com/MKamel7/fault-injection-harness/actions/workflows/verify.yml/badge.svg)](https://github.com/MKamel7/fault-injection-harness/actions)
 [![Faults](https://img.shields.io/badge/faults-29%20injected%2C%2024%20caught-brightgreen)](docs)
-[![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org)
+[![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.12-blue)](https://www.python.org)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 
 
@@ -24,7 +24,7 @@ are compared on the same fault set.
 
 ```
 29 faults   24 detected in time   0 detected late   5 residual   5 catalogued pairs
-323 tests   100% branch coverage   ruff + mypy strict   every figure here gated in CI
+323 tests   100% branch coverage   ruff + mypy strict   these counts gated in CI
 3 of 11 safety requirements currently NOT met, each named with why
 ```
 
@@ -109,7 +109,7 @@ against four successive designs:
 | Two sensors plus an accumulated overload channel | **step 2** | **51.6 C** |
 
 Budgets are **derived and differ by condition**: 22 steps for a locked rotor,
-136 for a sustained 2x overload, 1041 for cooling degraded to a third of nominal.
+136 for a sustained 2x overload, 1041 for cooling degraded to 0.35 of nominal.
 A fault judged on a budget looser than its requirement is the easiest way to
 inflate a coverage report, and the traceability gate refuses it.
 
@@ -127,20 +127,23 @@ have closed none of these:
 **The sharpest result is why the first attempt failed.** A predicted-temperature
 channel looked right and passed every test, and was only passing because its
 model shared the plant's coefficients. A class 155 machine at a 100 K rated rise
-runs at **87% of its absolute insulation limit**, so solving the bounding
-constraints gave a tolerable prediction error of **0.00%**. An accumulator sits
+has used **87% of its headroom to the insulation limit** (100 K of 115 K), so
+solving the bounding constraints gave a tolerable prediction error of **0.00%**. An accumulator sits
 at *zero* during rated duty instead, and tolerates about +7% over-reading and
 46 to 75% under-reading. Real drives protect this way for exactly this reason.
 
-**What it costs.** The overload channel knows only what was commanded, so a
-degraded plant leaves it at exactly zero and only a measurement notices. Neither
+**What it costs.** The overload channel knows only the current, so a degraded
+plant still drawing rated current leaves it at exactly zero and only a
+temperature measurement notices. Neither
 kind is sufficient; the pair covers two disjoint failure classes. That is what
 diversity means, and it is why the fault the channel *cannot* see is catalogued
 even though it passes.
 
-**And something still gets through.** Combining both blind spots, a mild cooling
-degradation plus a lying winding sensor plus a dead frame channel, still drives
-the winding past its limit undetected. That is three faults, so the harness cannot
+**And something still gets through.** Combining both blind spots, cooling degraded
+to 0.7 of nominal plus a lying winding sensor plus a dead frame channel, drives
+the winding to about 165 C, past its 155 C limit, undetected. The cooling fault
+alone is caught by the frame sensor; with both temperature channels gone,
+nothing is left that can see it. That is three faults, so the harness cannot
 express it as a pair, and it is written into the safety argument rather than left
 to be found.
 
@@ -350,14 +353,14 @@ the cut sets.
 
 ## 🔭 Future improvements
 
-Timing faults landed on 31 August and the result is in the table above: **jitter is caught, drift is not.** FLT-T07 is now a documented residual, because a counter and timeout pair cannot see uniform latency growth. Every frame is individually perfect, the consecutive number is exactly one more than the last, and it arrives before the timeout; what is wrong is the relationship between the frame sequence and real elapsed time, and neither a checksum nor a counter carries any information about that. Closing it needs a timestamp in the protected frame, which is a change to what the frame carries rather than to the checks over it.
+Timing faults landed on 31 August and the result is in `report/coverage.md`: **jitter is caught, drift is not.** FLT-T07 is now a documented residual, because a counter and timeout pair cannot see uniform latency growth. Every frame is individually perfect, the consecutive number is exactly one more than the last, and it arrives before the timeout; what is wrong is the relationship between the frame sequence and real elapsed time, and neither a checksum nor a counter carries any information about that. Closing it needs a timestamp in the protected frame, which is a change to what the frame carries rather than to the checks over it.
 
 - **Implement PROFIsafe properly and delete the caveat.** The 8-bit CRC currently stands in for a scheme that really uses a wider CRC and a 24-bit consecutive number over its F-Parameters. It is the only asterisk on the headline claim.
 
-Not doing: **renaming this to a "Framework".** It breaks every link and claims more than "harness" does, which cuts against the accuracy discipline that makes this worth reading. And not chasing 100% detection: four faults are residual by design, each recording what would be needed to catch it.
+Not doing: **renaming this to a "Framework".** It breaks every link and claims more than "harness" does, which cuts against the accuracy discipline that makes this worth reading. And not chasing 100% detection: five faults are residual by design, each recording what would be needed to catch it.
 
 ---
 
-Built by **Mo Kamel**, M.Eng. Mechatronic and Cyber-Physical Systems, Technische
+Built by **Mo Kamel**, M.Eng. student, Mechatronic and Cyber-Physical Systems, Technische
 Hochschule Deggendorf.
 [Portfolio](https://mkamel7.github.io) · [LinkedIn](https://linkedin.com/in/mo-kamel7)

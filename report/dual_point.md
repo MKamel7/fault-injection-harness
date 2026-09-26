@@ -58,5 +58,5 @@ DP-03 and DP-04 pair the same latent fault with primaries the design handles any
 
 Pairs only. Two faults can be attributed, because the pair can be compared against each member run alone and the difference is caused by the combination. Beyond two that attribution disappears.
 
-This is **not** an ISO 26262 latent fault metric. That is a quantity over a real hardware architecture with failure rates in FIT, and there are none here. What this measures is whether specific catalogued combinations defeat the design, which is a statement about these four pairs and nothing wider.
+This is **not** an ISO 26262 latent fault metric. That is a quantity over a real hardware architecture with failure rates in FIT, and there are none here. What this measures is whether specific catalogued combinations defeat the design, which is a statement about these 5 pairs and nothing wider.
 

@@ -12,8 +12,8 @@ servomotor, commanded over a line-based serial protocol, with thermal
 protection, stall handling and a software watchdog.
 
 The device under test is `embedded-test-automation` v3.1, imported as a pinned
-dependency. Its operating envelope and protection thresholds are grounded in the
-data sheet for a **Siemens SIMOTICS S-1FK2**, article `1FK2105-6AF10-0SA0`, on a
+dependency. Its operating envelope is grounded in the data sheet, and its
+thermal limits in the series documentation, for a **Siemens SIMOTICS S-1FK2**, article `1FK2105-6AF10-0SA0`, on a
 SINAMICS S210 drive:
 
 | Property | Value | Source |
@@ -22,7 +22,9 @@ SINAMICS S210 drive:
 | Rated speed / torque | 3,000 rpm / 6.60 Nm | data sheet |
 | Maximum torque | 24.00 Nm | data sheet |
 | Rotor inertia | 3.5e-4 kg m² | data sheet |
-| Winding limit | 140 °C | thermal class 155 (F), dT = 100 K at 40 °C ambient |
+| Rated winding temperature | 140 °C | 40 °C ambient + 100 K rated rise, S-1FK2 series documentation, not the article data sheet |
+| Insulation limit | 155 °C | thermal class 155 (F), series documentation |
+| Thermal trip | 149.1 °C | derived: one worst case locked rotor step (5.9 K) below the insulation limit |
 | Simulation step | 1 ms | fitted to the data sheet mechanical response |
 
 ## 2. Method, and what this analysis is not
@@ -145,7 +147,7 @@ The free running equilibrium and the stall latency quoted here previously came
 from a speed dependent thermal model that was replaced in v2.0 and rebuilt again
 in v3.0. Rather than restate numbers that go stale, the current figures are
 generated: see `report/coverage.md` for measured detection latencies and the
-per condition budget table in section 9 of this document.
+per condition budget table in section 10 of this document.
 
 What is stable enough to state in prose: heating follows CURRENT rather than
 speed, so the free running equilibrium depends on load and not on how fast the
@@ -189,7 +191,7 @@ Each is testable, and each is challenged by at least one fault in the catalog.
   A campaign reporting 100% detection would not be credible.
 
 
-## 9. Change impact analysis
+## 10. Change impact analysis
 
 Added after a review found that the item had changed twice while this document
 had not. Both standards require the safety analysis to be revisited when the
@@ -214,7 +216,7 @@ Recorded per release from here on, however short.
 Because a single number would be wrong, and stating one invited a real error. A
 thermal FTTI is the interval from the hazardous condition arising to the hazard
 occurring, and for a thermal hazard that interval depends entirely on how hard
-the machine is being driven: a locked rotor covers the permitted rise in 22
+the machine is being driven: a locked rotor reaches the insulation limit in 22
 steps and an obstructed installation at rated load takes 1041.
 
 An earlier version quoted the locked rotor figure as though it applied to all of
@@ -234,8 +236,8 @@ would be meaningless there too.
 ### FTTI budgets, and why they differ by condition
 
 Every thermal budget is now measured rather than chosen: the steps the winding
-takes to cover its whole permitted rise, 40 C to 140 C, under the condition being
-tested.
+takes to rise from 40 C ambient to the 155 C insulation limit, with protection
+suppressed, under the condition being tested.
 
 | Condition | Current | Budget |
 |---|---|---|
@@ -243,9 +245,10 @@ tested.
 | Sustained overload, still turning | 2x rated | **136 steps** |
 | Cooling degraded to 0.35 of nominal | rated | **1041 steps** |
 
-Both are worth carrying, and testing only the first was misleading. Under
-overload the cross check fires at step 27 with the winding at 117 C, inside both
-budget and limit, so the second temperature source **does** protect against a
+All three are worth carrying, and testing only the first was misleading. With
+the overload channel switched off, so the two temperature sensors are measured
+alone, the cross check under overload fires at step 66 with the winding at
+107 C, inside both budget and limit, so the second temperature source **does** protect against a
 lying sensor there. It fails only under locked rotor, where the winding covers
 its entire rise faster than the frame can follow. A catalog that exercised only
 the stall made the redundancy look simply inadequate; it is adequate for the

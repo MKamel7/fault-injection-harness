@@ -44,8 +44,7 @@ It traces to **SG-02** (on detection of a fault, the drive shall reach a safe
 state) and **SG-04** (corrupted, stale, lost or repeated commands shall not be
 acted upon), which come from **HAZ-02** (the motor continues to drive when a stop
 is required) and **HAZ-04**. It is challenged by faults **FLT-C03** (silent
-channel), **FLT-C06** (dropped commands), **FLT-T01** (starved watchdog) and
-**FLT-T02** (a kick one step late).
+channel), **FLT-T01** (starved watchdog) and **FLT-T02** (a kick one step late).
 
 ### The same requirement, in both vocabularies
 
@@ -213,6 +212,7 @@ assumption rather than a control.
   rates: it exercises the method, and no number in it describes this design.
   PMHF is still absent, since it needs an exposure time and a mission profile
   that a bench simulation does not have.
-- **Single fault at a time.** Latent plus primary fault combinations, which is
-  where single channel designs actually fail, are out of scope and named as a
-  gap rather than omitted.
+- **Single fault at a time, plus five catalogued pairs.** Latent plus primary
+  and dual point combinations are covered only as the pairs in
+  `catalog/dual_point.yaml`. Combinations of three or more faults are out of
+  scope and named as a gap rather than omitted.
